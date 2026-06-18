@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useTournament } from "../context/TournamentContext";
+import { useTournamentActions } from "../hooks/useTournamentActions";
 
 const ADMIN_RIGHTS = [
   { id: "general", label: "Gestion générale", icon: "settings" },
@@ -11,15 +11,26 @@ const ADMIN_RIGHTS = [
 ];
 
 export default function AdminsPage() {
-  const { data } = useTournament();
+  const { data, addAdmin, removeAdmin } = useTournamentActions();
   const [showModal, setShowModal] = useState(false);
   const [email, setEmail] = useState("");
   const [rights, setRights] = useState([]);
 
   const toggleRight = (id) => {
-    setRights((prev) =>
-      prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]
-    );
+    setRights((prev) => (prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]));
+  };
+
+  const handleAdd = () => {
+    addAdmin(email, rights);
+    setEmail("");
+    setRights([]);
+    setShowModal(false);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEmail("");
+    setRights([]);
   };
 
   if (data.admins.length === 0 && !showModal) {
@@ -29,15 +40,10 @@ export default function AdminsPage() {
           <div className="admin-empty-icon material-icons">sports</div>
           <h2>Ajouter des administrateurs</h2>
           <p>
-            Cette option vous permet de collaborer avec d&apos;autres organisateurs
-            sur ce tournoi. Chaque administrateur peut se voir attribuer des droits
-            spécifiques.
+            Cette option vous permet de collaborer avec d&apos;autres organisateurs sur ce
+            tournoi. Chaque administrateur peut se voir attribuer des droits spécifiques.
           </p>
-          <button
-            type="button"
-            className="btn-outlined"
-            onClick={() => setShowModal(true)}
-          >
+          <button type="button" className="btn-outlined" onClick={() => setShowModal(true)}>
             Ajouter un administrateur
           </button>
         </div>
@@ -47,7 +53,8 @@ export default function AdminsPage() {
             setEmail={setEmail}
             rights={rights}
             toggleRight={toggleRight}
-            onClose={() => setShowModal(false)}
+            onClose={closeModal}
+            onAdd={handleAdd}
           />
         )}
       </div>
@@ -61,28 +68,55 @@ export default function AdminsPage() {
           Ajouter un administrateur
         </button>
       </div>
+
+      <div className="data-table-wrap">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>E-mail</th>
+              <th>Droits</th>
+              <th style={{ width: 40 }} />
+            </tr>
+          </thead>
+          <tbody>
+            {data.admins.map((admin) => (
+              <tr key={admin.id}>
+                <td>{admin.email}</td>
+                <td>{admin.rights?.length ? admin.rights.join(", ") : "—"}</td>
+                <td>
+                  <button type="button" className="list-row-edit" onClick={() => removeAdmin(admin.id)}>
+                    <span className="material-icons md-20">delete</span>
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
       {showModal && (
         <AdminModal
           email={email}
           setEmail={setEmail}
           rights={rights}
           toggleRight={toggleRight}
-          onClose={() => setShowModal(false)}
+          onClose={closeModal}
+          onAdd={handleAdd}
         />
       )}
     </div>
   );
 }
 
-function AdminModal({ email, setEmail, rights, toggleRight, onClose }) {
+function AdminModal({ email, setEmail, rights, toggleRight, onClose, onAdd }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">Ajouter un administrateur</div>
         <div className="modal-body">
           <p className="section-desc">
-            Vous ne pouvez ajouter qu&apos;une seule adresse e-mail avec laquelle un
-            compte a déjà été créé.
+            Vous ne pouvez ajouter qu&apos;une seule adresse e-mail avec laquelle un compte a
+            déjà été créé.
           </p>
           <label className="mui-input-label">Adresse e-mail</label>
           <input
@@ -91,7 +125,9 @@ function AdminModal({ email, setEmail, rights, toggleRight, onClose }) {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
-          <p className="section-title" style={{ marginTop: 20 }}>Droits :</p>
+          <p className="section-title" style={{ marginTop: 20 }}>
+            Droits :
+          </p>
           <ul className="rights-list">
             {ADMIN_RIGHTS.map((r) => (
               <li key={r.id}>
@@ -111,7 +147,7 @@ function AdminModal({ email, setEmail, rights, toggleRight, onClose }) {
           <button type="button" className="btn-text" onClick={onClose}>
             Annuler
           </button>
-          <button type="button" className="btn-text" disabled={!email}>
+          <button type="button" className="btn-text" disabled={!email} onClick={onAdd}>
             Ajouter
           </button>
         </div>

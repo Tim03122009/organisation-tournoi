@@ -277,3 +277,43 @@ textarea {
   gap: 16px;
   margin: 24px 0;
 }
+
+.app-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #323232;
+  color: #fff;
+  padding: 12px 24px;
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  z-index: 3000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  animation: toast-in 0.25s ease;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(12px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.clickable-info {
+  cursor: pointer;
+  text-decoration: underline;
+  color: var(--primary);
+}
+
+.score-input {
+  width: 36px;
+  text-align: center;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  padding: 4px;
+  font-size: 0.875rem;
+}
+
+.collapsible-body {
+  padding-bottom: 16px;
+}
+

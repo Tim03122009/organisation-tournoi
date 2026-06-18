@@ -1,6 +1,14 @@
 export const defaultTournament = {
   name: "Gestion tournoi",
   isOnline: false,
+  sportType: "team",
+  audienceOpen: false,
+  pointsOpen: false,
+  selectedDivision: "U11",
+  matchDuration: 17,
+  calendarLocked: false,
+  planSelection: { poules: "", days: "", terrains: "" },
+  refereeMode: "one_per_match",
   days: [{ id: 1, label: "Mercredi 17 juin 2026" }],
   locations: [
     {
@@ -133,10 +141,46 @@ export const defaultTournament = {
   ],
   unscheduledMatches: 24,
   totalMatches: 37,
+  unscheduledSlots: Array.from({ length: 24 }, (_, i) => ({
+    id: i + 1,
+    poule: i % 2 === 0 ? "Poule A" : "Poule B",
+    label: "Emplacement vide",
+  })),
   presentation: {
     websiteActive: true,
     websiteUrl: "https://example.com/tournoi",
     showInApp: true,
+    adminLink: "https://gestion-tournoi.local/admin/abc123",
+    generalSettings: {
+      showLogo: true,
+      showSponsors: true,
+      showStandings: true,
+    },
+    standingsShowPoints: true,
+    standingsColumns: {},
+    slideshowSettings: {
+      showTournamentName: true,
+      showCurrentTime: true,
+    },
+    designAssets: { logo: null, context: null, sponsors: null },
+    sponsorBlocks: [{ id: 1, name: "Bloc 1" }],
+    pageContent: {
+      tournoi: { description: "", mergeSponsors: false, attachments: [], images: [] },
+      inscrire: {
+        open: true,
+        intro: "",
+        maxRegistrations: "",
+        fee: "",
+        sendConfirmation: true,
+        subject: "",
+        footer: "",
+      },
+    },
+    registrationQuestions: [
+      { id: 1, text: "Quel est le nom de votre équipe ?" },
+      { id: 2, text: "Quel est votre logo ?" },
+      { id: 3, text: "Quelle division ?" },
+    ],
     pages: [
       { id: "tournoi", name: "Tournoi", enabled: true },
       { id: "equipe", name: "Mon équipe", enabled: true },

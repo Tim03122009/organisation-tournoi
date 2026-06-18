@@ -3,20 +3,33 @@ import { defaultTournament } from "../data/defaultData";
 
 const STORAGE_KEY = "gestion-tournoi-data";
 
+function loadData() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) return defaultTournament;
+    const parsed = JSON.parse(saved);
+    return {
+      ...defaultTournament,
+      ...parsed,
+      presentation: { ...defaultTournament.presentation, ...parsed.presentation },
+      scores: { ...defaultTournament.scores, ...parsed.scores },
+    };
+  } catch {
+    return defaultTournament;
+  }
+}
+
 const TournamentContext = createContext(null);
 
 export function TournamentProvider({ children }) {
-  const [data, setData] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? JSON.parse(saved) : defaultTournament;
-    } catch {
-      return defaultTournament;
-    }
-  });
+  const [data, setData] = useState(loadData);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (err) {
+      console.warn("Sauvegarde locale impossible:", err);
+    }
   }, [data]);
 
   const update = (patch) => setData((prev) => ({ ...prev, ...patch }));
