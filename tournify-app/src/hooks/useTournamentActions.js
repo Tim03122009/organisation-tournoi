@@ -4,14 +4,18 @@ import { useAppUI } from "../context/AppUIContext";
 import {
   DIVISION_COLORS,
   downloadText,
+  formatFrenchDayLabel,
   generateAdminLink,
+  generateTeamToken,
+  inferDayDate,
   nextId,
+  parseCsv,
   toCsv,
 } from "../utils/helpers";
 
 export function useTournamentActions() {
   const { data, setData, update } = useTournament();
-  const { showToast, openPrompt, openConfirm, openAlert } = useAppUI();
+  const { showToast, openPrompt, openConfirm, openAlert, openDayEditor, openLocationEditor, openDivisionEditor, openInfoFieldEditor, openChoiceList, openTeamEditor, openPlayersEditor } = useAppUI();
 
   const patch = useCallback(
     (fn) =>
@@ -32,65 +36,120 @@ export function useTournamentActions() {
   );
 
   // ——— Général ———
-  const addDay = () =>
+  const editTournamentName = () =>
     openPrompt({
+      title: "Nom du tournoi",
+      defaultValue: data.name,
+      confirmText: "Sauvegarder",
+      onSubmit: (name) => {
+        update({ name });
+        showToast("Nom du tournoi mis à jour");
+      },
+    });
+
+  const addDay = () =>
+    openDayEditor({
       title: "Ajouter un jour",
-      label: "Date / libellé",
-      onSubmit: (label) => {
-        patch((p) => ({ days: [...p.days, { id: nextId(p.days), label }] }));
+      defaultDate: new Date().toISOString().slice(0, 10),
+      onSubmit: (date) => {
+        patch((p) => ({
+          days: [...p.days, { id: nextId(p.days), date, label: formatFrenchDayLabel(date) }],
+        }));
         showToast("Journée ajoutée");
       },
     });
 
   const editDay = (id) => {
     const day = data.days.find((d) => d.id === id);
-    openPrompt({
-      title: "Modifier la journée",
-      label: "Date / libellé",
-      defaultValue: day?.label,
-      onSubmit: (label) => {
+    openDayEditor({
+      title: "Modifier le jour",
+      defaultDate: inferDayDate(day),
+      confirmText: "Sauvegarder",
+      onSubmit: (date) => {
         patch((p) => ({
-          days: p.days.map((d) => (d.id === id ? { ...d, label } : d)),
+          days: p.days.map((d) =>
+            d.id === id ? { ...d, date, label: formatFrenchDayLabel(date) } : d
+          ),
         }));
         showToast("Journée mise à jour");
       },
+      onDelete: () => {
+        patch((p) => ({ days: p.days.filter((d) => d.id !== id) }));
+        showToast("Journée supprimée");
+      },
+      deleteDisabled: data.days.length <= 1,
     });
   };
 
   const addLocation = () =>
-    openPrompt({
+    openLocationEditor({
       title: "Ajouter un lieu",
-      label: "Adresse",
-      onSubmit: (label) => {
-        patch((p) => ({ locations: [...p.locations, { id: nextId(p.locations), label }] }));
+      defaultLocation: { label: "", lat: null, lng: null, area: null, showLogo: false, logo: null },
+      onSubmit: ({ label, lat, lng, area, showLogo, logo }) => {
+        patch((p) => ({
+          locations: [
+            ...p.locations,
+            {
+              id: nextId(p.locations),
+              label,
+              lat,
+              lng,
+              area: area || null,
+              showLogo: Boolean(showLogo),
+              logo: logo || null,
+            },
+          ],
+        }));
         showToast("Lieu ajouté");
       },
     });
 
   const editLocation = (id) => {
     const loc = data.locations.find((l) => l.id === id);
-    openPrompt({
+    openLocationEditor({
       title: "Modifier le lieu",
-      label: "Adresse",
-      defaultValue: loc?.label,
-      onSubmit: (label) => {
+      defaultLocation: {
+        label: loc?.label ?? "",
+        lat: loc?.lat ?? null,
+        lng: loc?.lng ?? null,
+        area: loc?.area ?? null,
+        showLogo: loc?.showLogo ?? false,
+        logo: loc?.logo ?? null,
+      },
+      confirmText: "Sauvegarder",
+      onSubmit: ({ label, lat, lng, area, showLogo, logo }) => {
         patch((p) => ({
-          locations: p.locations.map((l) => (l.id === id ? { ...l, label } : l)),
+          locations: p.locations.map((l) =>
+            l.id === id
+              ? { ...l, label, lat, lng, area: area || null, showLogo: Boolean(showLogo), logo: logo || null }
+              : l
+          ),
         }));
         showToast("Lieu mis à jour");
       },
+      onDelete: () => {
+        patch((p) => ({ locations: p.locations.filter((l) => l.id !== id) }));
+        showToast("Lieu supprimé");
+      },
+      deleteDisabled: data.locations.length <= 1,
     });
   };
 
   const addDivision = () =>
-    openPrompt({
+    openDivisionEditor({
       title: "Ajouter une division",
-      label: "Nom (ex: U11)",
-      onSubmit: (name) => {
+      defaultDivision: { name: "", showLogo: false, logo: null },
+      onSubmit: ({ name, showLogo, logo }) => {
         patch((p) => ({
           divisions: [
             ...p.divisions,
-            { id: nextId(p.divisions), name, color: DIVISION_COLORS[p.divisions.length % DIVISION_COLORS.length] },
+            {
+              id: nextId(p.divisions),
+              name,
+              color: DIVISION_COLORS[p.divisions.length % DIVISION_COLORS.length],
+              showLogo: Boolean(showLogo),
+              logo: logo || null,
+            },
           ],
         }));
         showToast("Division ajoutée");
@@ -99,33 +158,31 @@ export function useTournamentActions() {
 
   const editDivision = (id) => {
     const div = data.divisions.find((d) => d.id === id);
-    openPrompt({
-      title: "Modifier la division",
-      label: "Nom",
-      defaultValue: div?.name,
-      onSubmit: (name) => {
+    openDivisionEditor({
+      title: "Éditer la division",
+      defaultDivision: {
+        name: div?.name ?? "",
+        showLogo: div?.showLogo ?? false,
+        logo: div?.logo ?? null,
+      },
+      confirmText: "Sauvegarder",
+      onSubmit: ({ name, showLogo, logo }) => {
         patch((p) => ({
-          divisions: p.divisions.map((d) => (d.id === id ? { ...d, name } : d)),
+          divisions: p.divisions.map((d) =>
+            d.id === id
+              ? { ...d, name, showLogo: Boolean(showLogo), logo: showLogo ? logo || null : null }
+              : d
+          ),
         }));
         showToast("Division mise à jour");
       },
+      onDelete: () => {
+        patch((p) => ({ divisions: p.divisions.filter((d) => d.id !== id) }));
+        showToast("Division supprimée");
+      },
+      deleteDisabled: data.divisions.length <= 1,
     });
   };
-
-  const addLanguage = () =>
-    openPrompt({
-      title: "Ajouter une langue",
-      label: "Code langue (ex: en, de, es)",
-      onSubmit: (code) => {
-        const lang = code.toLowerCase().slice(0, 2);
-        if (data.languages.includes(lang)) {
-          showToast("Cette langue est déjà ajoutée");
-          return;
-        }
-        patch((p) => ({ languages: [...p.languages, lang] }));
-        showToast(`Langue ${lang} ajoutée`);
-      },
-    });
 
   const toggleSection = (key) => patch((p) => ({ [key]: !p[key] }));
 
@@ -136,13 +193,20 @@ export function useTournamentActions() {
     }));
 
   const addTeamField = () =>
-    openPrompt({
-      title: "Nouveau champ équipe",
-      label: "Libellé du champ",
-      onSubmit: (label) => {
-        const id = label.toLowerCase().replace(/\s+/g, "_");
+    openInfoFieldEditor({
+      onSubmit: ({ label, publicOnTeamPage, answerWithCheckbox }) => {
         patch((p) => ({
-          teamFields: [...p.teamFields, { id, label, standard: false, enabled: true }],
+          teamFields: [
+            ...p.teamFields,
+            {
+              id: `tf_${nextId(p.teamFields)}`,
+              label,
+              standard: false,
+              enabled: true,
+              publicOnTeamPage,
+              ...(answerWithCheckbox ? { inputType: "checkbox" } : {}),
+            },
+          ],
         }));
         showToast("Champ ajouté");
       },
@@ -152,7 +216,9 @@ export function useTournamentActions() {
     const field = data.teamFields.find((f) => f.id === id);
     openPrompt({
       title: "Modifier le champ",
+      label: "Nom",
       defaultValue: field?.label,
+      confirmText: "Sauvegarder",
       onSubmit: (label) => {
         patch((p) => ({
           teamFields: p.teamFields.map((f) => (f.id === id ? { ...f, label } : f)),
@@ -162,18 +228,41 @@ export function useTournamentActions() {
     });
   };
 
+  const deleteTeamField = (id) =>
+    openConfirm({
+      title: "Supprimer le champ",
+      message: "Supprimer ce champ d'information ?",
+      confirmText: "Supprimer",
+      onConfirm: () => {
+        patch((p) => ({
+          teamFields: p.teamFields.filter((f) => f.id !== id),
+        }));
+        showToast("Champ supprimé");
+      },
+    });
+
   const togglePlayerField = (id) =>
     patch((p) => ({
-      playerFields: p.playerFields.map((f) => (f.id === id ? { ...f, enabled: !f.enabled } : f)),
+      playerFields: p.playerFields.map((f) =>
+        f.id === id && !f.locked ? { ...f, enabled: !f.enabled } : f
+      ),
     }));
 
   const addPlayerField = () =>
-    openPrompt({
-      title: "Nouveau champ joueur",
-      label: "Libellé",
-      onSubmit: (label) => {
+    openInfoFieldEditor({
+      onSubmit: ({ label, publicOnTeamPage, answerWithCheckbox }) => {
         patch((p) => ({
-          playerFields: [...p.playerFields, { id: `p_${nextId(p.playerFields)}`, label, enabled: true }],
+          playerFields: [
+            ...p.playerFields,
+            {
+              id: `p_${nextId(p.playerFields)}`,
+              label,
+              enabled: true,
+              custom: true,
+              publicOnTeamPage,
+              ...(answerWithCheckbox ? { inputType: "checkbox" } : {}),
+            },
+          ],
         }));
         showToast("Champ joueur ajouté");
       },
@@ -183,7 +272,9 @@ export function useTournamentActions() {
     const field = data.playerFields.find((f) => f.id === id);
     openPrompt({
       title: "Modifier le champ joueur",
+      label: "Nom",
       defaultValue: field?.label,
+      confirmText: "Sauvegarder",
       onSubmit: (label) => {
         patch((p) => ({
           playerFields: p.playerFields.map((f) => (f.id === id ? { ...f, label } : f)),
@@ -192,6 +283,26 @@ export function useTournamentActions() {
       },
     });
   };
+
+  const deletePlayerField = (id) =>
+    openConfirm({
+      title: "Supprimer le champ",
+      message: "Supprimer ce champ d'information ?",
+      confirmText: "Supprimer",
+      onConfirm: () => {
+        patch((p) => ({
+          playerFields: p.playerFields.filter((f) => f.id !== id),
+        }));
+        showToast("Champ supprimé");
+      },
+    });
+
+  const toggleInscriptionQuestion = (id) =>
+    patch((p) => ({
+      inscriptionQuestions: (p.inscriptionQuestions || []).map((q) =>
+        q.id === id ? { ...q, enabled: !q.enabled } : q
+      ),
+    }));
 
   const switchToIndividualSport = () =>
     openConfirm({
@@ -209,7 +320,24 @@ export function useTournamentActions() {
       label: "Nom de l'équipe",
       onSubmit: (name) => {
         patch((p) => ({
-          teams: [...p.teams, { id: nextId(p.teams), name, email: "", players: 0, region: "" }],
+          teams: [
+            ...p.teams,
+            {
+              id: nextId(p.teams),
+              name,
+              email: "",
+              players: 0,
+              region: "",
+              departement: "",
+              present: false,
+              paye: false,
+              ajoute: true,
+              division: p.selectedDivision || p.divisions?.[0]?.name || "",
+              connectionToken: generateTeamToken(),
+              playerList: [],
+              fields: {},
+            },
+          ],
         }));
         showToast("Équipe ajoutée");
       },
@@ -217,34 +345,408 @@ export function useTournamentActions() {
 
   const editTeam = (id) => {
     const team = data.teams.find((t) => t.id === id);
-    openPrompt({
+    if (!team) return;
+
+    const gridOnly = new Set(["present", "paye", "ajoute", "lien", "logo", "joueurs"]);
+    const fields = [
+      ...(data.teamFields || []).filter(
+        (f) => (f.standard === false || f.enabled) && !gridOnly.has(f.id)
+      ),
+      ...(data.inscriptionQuestions || [])
+        .filter((q) => q.enabled)
+        .map((q) => ({ id: q.id, label: q.label })),
+    ];
+
+    openTeamEditor({
       title: "Modifier l'équipe",
-      defaultValue: team?.name,
-      onSubmit: (name) => {
+      team,
+      fields,
+      divisions: data.divisions || [],
+      onSubmit: (next) => {
         patch((p) => ({
-          teams: p.teams.map((t) => (t.id === id ? { ...t, name } : t)),
+          teams: p.teams.map((t) =>
+            t.id === id
+              ? {
+                  ...t,
+                  name: next.name,
+                  division: next.division,
+                  email: next.email,
+                  departement: next.departement ?? next.region ?? "",
+                  region: next.departement ?? next.region ?? "",
+                  pays: next.pays,
+                  vestiaire: next.vestiaire,
+                  fields: { ...(t.fields || {}), ...(next.fields || {}) },
+                }
+              : t
+          ),
         }));
         showToast("Équipe mise à jour");
       },
     });
   };
 
-  const deleteSelectedTeams = (ids) => {
+  const openTeamPlayers = (id) => {
+    const team = data.teams.find((t) => t.id === id);
+    if (!team) return;
+
+    const playerList = Array.isArray(team.playerList) ? team.playerList : [];
+
+    openPlayersEditor({
+      title: "Joueurs",
+      team,
+      players: playerList,
+      playerFields: data.playerFields || [],
+      onChange: (players) => {
+        patch((p) => ({
+          teams: p.teams.map((t) =>
+            t.id === id
+              ? {
+                  ...t,
+                  playerList: players,
+                  players: players.length,
+                }
+              : t
+          ),
+        }));
+      },
+    });
+  };
+
+  const deleteSelectedTeams = (ids, onDone) => {
     if (!ids.length) return showToast("Sélectionnez au moins une équipe");
     openConfirm({
-      title: "Supprimer",
-      message: `Supprimer ${ids.length} équipe(s) ?`,
+      title: "Supprimer des équipes",
+      message:
+        "Êtes-vous sûr de vouloir supprimer les équipes sélectionnées ? Ces équipes seront également retirées de toutes les poules et de tous les matches.",
+      confirmText: "Supprimer",
+      confirmContained: true,
       onConfirm: () => {
-        patch((p) => ({ teams: p.teams.filter((t) => !ids.includes(t.id)) }));
+        const names = new Set(
+          data.teams.filter((t) => ids.includes(t.id)).map((t) => t.name)
+        );
+        patch((p) => ({
+          teams: p.teams.filter((t) => !ids.includes(t.id)),
+          phases: (p.phases || []).map((phase) => ({
+            ...phase,
+            items: (phase.items || []).map((item) => ({
+              ...item,
+              teams: (item.teams || []).filter((teamName) => !names.has(teamName)),
+            })),
+          })),
+        }));
+        onDone?.();
         showToast("Équipe(s) supprimée(s)");
       },
     });
   };
 
-  const exportTeams = () => {
-    const csv = toCsv(data.teams, ["name", "email", "players", "region"]);
+  const duplicateSelectedTeams = (ids, onDone) => {
+    if (!ids.length) return showToast("Sélectionnez au moins une équipe");
+    patch((p) => {
+      const copies = p.teams
+        .filter((t) => ids.includes(t.id))
+        .map((t, index) => ({
+          ...t,
+          id: nextId(p.teams) + index,
+          name: `${t.name} (copie)`,
+          connectionToken: generateTeamToken(),
+          fields: { ...(t.fields || {}) },
+        }));
+      return { teams: [...p.teams, ...copies] };
+    });
+    onDone?.();
+    showToast(ids.length > 1 ? "Équipes dupliquées" : "Équipe dupliquée");
+  };
+
+  const moveSelectedTeams = (ids, onDone) => {
+    if (!ids.length) return showToast("Sélectionnez au moins une équipe");
+    openChoiceList({
+      title: "Déplacé vers une autre division",
+      message: "Choisissez la division dans laquelle vous voulez déplacer les équipes",
+      options: (data.divisions || []).map((d) => ({
+        id: d.id,
+        label: d.name,
+        value: d.name,
+      })),
+      onSelect: (option) => {
+        patch((p) => ({
+          teams: p.teams.map((t) =>
+            ids.includes(t.id) ? { ...t, division: option.value } : t
+          ),
+        }));
+        onDone?.();
+        showToast(`Équipe(s) déplacée(s) vers ${option.label}`);
+      },
+    });
+  };
+
+  const getTeamCsvFields = (source = data) => [
+    ...(source.teamFields || []).filter(
+      (f) =>
+        (f.standard === false || f.enabled) &&
+        f.id !== "lien" &&
+        f.id !== "logo"
+    ),
+    ...(source.inscriptionQuestions || []).filter((q) => q.enabled),
+  ];
+
+  const serializePlayersForCsv = (team) => {
+    const list = Array.isArray(team.playerList) ? team.playerList : [];
+    if (!list.length) return String(team.players ?? 0);
+    // Compact JSON (non lisible volontairement) pour conserver les joueurs
+    return JSON.stringify(
+      list.map((player) => {
+        const { id, ...rest } = player;
+        return rest;
+      })
+    );
+  };
+
+  const parsePlayersFromCsv = (raw) => {
+    const trimmed = String(raw ?? "").trim();
+    if (!trimmed) return null;
+    if (trimmed.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          const playerList = parsed.map((player, index) => ({
+            id: player?.id ?? index + 1,
+            ...(typeof player === "object" && player ? player : { nom: String(player) }),
+          }));
+          return { playerList, players: playerList.length };
+        }
+      } catch {
+        // fallback numérique ci-dessous
+      }
+    }
+    const n = Number.parseInt(trimmed, 10);
+    if (Number.isFinite(n)) return { players: n };
+    return null;
+  };
+
+  const exportTeams = (teamIds) => {
+    const idSet = Array.isArray(teamIds) && teamIds.length ? new Set(teamIds) : null;
+    const teams = idSet ? data.teams.filter((t) => idSet.has(t.id)) : data.teams;
+    if (!teams.length) {
+      showToast("Aucune équipe à exporter");
+      return;
+    }
+
+    const enabledFields = getTeamCsvFields().filter((f) => f.id !== "lien");
+    const rows = teams.map((team) => {
+      const row = { Nom: team.name };
+      enabledFields.forEach((field) => {
+        if (field.id === "joueurs") row[field.label] = serializePlayersForCsv(team);
+        else if (field.id === "email") row[field.label] = team.email ?? "";
+        else if (field.id === "departement" || field.id === "region")
+          row[field.label] = team.departement ?? team.region ?? "";
+        else if (["present", "paye", "ajoute"].includes(field.id) || field.inputType === "checkbox") {
+          const rawValue =
+            field.inputType === "checkbox"
+              ? team.fields?.[field.id] ?? team[field.id]
+              : team[field.id];
+          row[field.label] = rawValue ? "oui" : "non";
+        } else {
+          const value = team.fields?.[field.id] ?? team[field.id] ?? "";
+          row[field.label] = typeof value === "boolean" ? (value ? "oui" : "non") : value;
+        }
+      });
+      return row;
+    });
+    const columns = ["Nom", ...enabledFields.map((f) => f.label)];
+    // ; + BOM : colonnes lisibles dans Excel FR / éditeur de texte
+    const csv = toCsv(rows, columns, { delimiter: ";", bom: true });
     downloadText("equipes.csv", csv, "text/csv;charset=utf-8");
-    showToast("Export téléchargé");
+    showToast(
+      idSet
+        ? `${teams.length} équipe${teams.length > 1 ? "s" : ""} exportée${teams.length > 1 ? "s" : ""}`
+        : "Export téléchargé"
+    );
+  };
+
+  const parseOuiNon = (value) => {
+    const v = String(value ?? "")
+      .trim()
+      .toLowerCase();
+    return ["oui", "yes", "true", "1", "x"].includes(v);
+  };
+
+  const slugifyFieldId = (label) => {
+    const base = String(label ?? "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_|_$/g, "")
+      .slice(0, 40);
+    return base || `champ_${Date.now()}`;
+  };
+
+  const applyImportedCell = (field, raw, topLevel, fieldValues) => {
+    if (raw === undefined || raw === "") return;
+    if (field.id === "lien" || field.id === "logo") return;
+    if (field.id === "joueurs") {
+      const parsed = parsePlayersFromCsv(raw);
+      if (parsed) Object.assign(topLevel, parsed);
+    } else if (field.id === "email") {
+      topLevel.email = String(raw);
+    } else if (field.id === "departement" || field.id === "region") {
+      topLevel.departement = String(raw);
+    } else if (["present", "paye", "ajoute"].includes(field.id)) {
+      topLevel[field.id] = parseOuiNon(raw);
+    } else if (field.inputType === "checkbox") {
+      fieldValues[field.id] = parseOuiNon(raw);
+    } else if (["pays", "vestiaire"].includes(field.id)) {
+      topLevel[field.id] = String(raw);
+    } else {
+      fieldValues[field.id] = String(raw);
+    }
+  };
+
+  const importTeams = (csvText) => {
+    const { headers, rows } = parseCsv(csvText);
+    if (!headers.length || !rows.length) {
+      showToast("Fichier CSV vide ou invalide");
+      return;
+    }
+
+    const nameHeader =
+      headers.find((h) => /^nom$/i.test(h)) ||
+      headers.find((h) => /^name$/i.test(h)) ||
+      headers[0];
+
+    const skipHeaders = new Set(
+      [nameHeader, "lien", "lien de connexion", "logo"].map((h) => String(h).trim().toLowerCase())
+    );
+
+    let teamFields = [...(data.teamFields || [])];
+    let inscriptionQuestions = [...(data.inscriptionQuestions || [])];
+    const importFields = [];
+    let columnsActivated = 0;
+
+    const findByLabelOrId = (list, header) => {
+      const key = header.trim().toLowerCase();
+      return list.find(
+        (item) =>
+          String(item.label).trim().toLowerCase() === key ||
+          String(item.id).trim().toLowerCase() === key
+      );
+    };
+
+    headers.forEach((header) => {
+      const key = header.trim().toLowerCase();
+      if (!key || skipHeaders.has(key)) return;
+
+      const hasAnyValue = rows.some((row) => String(row[header] ?? "").trim() !== "");
+      if (!hasAnyValue) return;
+
+      const existingField = findByLabelOrId(teamFields, header);
+      if (existingField) {
+        if (existingField.id === "lien" || existingField.id === "logo") return;
+        if (existingField.standard !== false && !existingField.enabled) {
+          teamFields = teamFields.map((f) =>
+            f.id === existingField.id ? { ...f, enabled: true } : f
+          );
+          columnsActivated += 1;
+        }
+        importFields.push({ ...existingField, enabled: true, csvHeader: header });
+        return;
+      }
+
+      const existingQuestion = findByLabelOrId(inscriptionQuestions, header);
+      if (existingQuestion) {
+        if (!existingQuestion.enabled) {
+          inscriptionQuestions = inscriptionQuestions.map((q) =>
+            q.id === existingQuestion.id ? { ...q, enabled: true } : q
+          );
+          columnsActivated += 1;
+        }
+        importFields.push({ ...existingQuestion, enabled: true, csvHeader: header });
+        return;
+      }
+
+      // Colonne inconnue → nouveau champ d'information
+      let id = slugifyFieldId(header);
+      const usedIds = new Set([
+        ...teamFields.map((f) => f.id),
+        ...inscriptionQuestions.map((q) => q.id),
+        ...importFields.map((f) => f.id),
+      ]);
+      if (usedIds.has(id)) {
+        let n = 2;
+        while (usedIds.has(`${id}_${n}`)) n += 1;
+        id = `${id}_${n}`;
+      }
+      const newField = { id, label: header.trim(), standard: false, enabled: true };
+      teamFields = [...teamFields, newField];
+      importFields.push({ ...newField, csvHeader: header });
+      columnsActivated += 1;
+    });
+
+    const teams = [...data.teams];
+    let idCounter = nextId(teams);
+    const defaultDivision = data.selectedDivision || data.divisions?.[0]?.name || "";
+    let added = 0;
+    let updated = 0;
+
+    rows.forEach((row) => {
+      const name = String(row[nameHeader] ?? "").trim();
+      if (!name) return;
+
+      const topLevel = {};
+      const fieldValues = {};
+      importFields.forEach((field) => {
+        applyImportedCell(field, row[field.csvHeader], topLevel, fieldValues);
+      });
+
+      const existingIndex = teams.findIndex((t) => t.name.toLowerCase() === name.toLowerCase());
+      if (existingIndex >= 0) {
+        const current = teams[existingIndex];
+        teams[existingIndex] = {
+          ...current,
+          ...topLevel,
+          fields: { ...(current.fields || {}), ...fieldValues },
+        };
+        updated += 1;
+      } else {
+        teams.push({
+          id: idCounter,
+          name,
+          email: "",
+          players: 0,
+          region: "",
+          departement: "",
+          present: false,
+          paye: false,
+          ajoute: true,
+          division: defaultDivision,
+          connectionToken: generateTeamToken(),
+          playerList: [],
+          fields: { ...fieldValues },
+          ...topLevel,
+        });
+        idCounter += 1;
+        added += 1;
+      }
+    });
+
+    if (!added && !updated) {
+      showToast("Aucune équipe importée");
+      return;
+    }
+
+    patch({ teams, teamFields, inscriptionQuestions });
+    showToast(
+      [
+        added ? `${added} ajoutée${added > 1 ? "s" : ""}` : null,
+        updated ? `${updated} mise${updated > 1 ? "s" : ""} à jour` : null,
+        columnsActivated
+          ? `${columnsActivated} colonne${columnsActivated > 1 ? "s" : ""} ajoutée${columnsActivated > 1 ? "s" : ""}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(", ")
+    );
   };
 
   // ——— Arbitres ———
@@ -746,12 +1248,6 @@ export function useTournamentActions() {
     });
   };
 
-  const showUpgrade = () =>
-    openAlert({
-      title: "Mise à niveau",
-      message: "Découvrez les fonctionnalités premium : paiements en ligne, notifications push, domaine personnalisé…",
-    });
-
   const showSupport = () =>
     openAlert({
       title: "Assistance",
@@ -818,25 +1314,32 @@ export function useTournamentActions() {
     update,
     patch,
     patchPresentation,
+    editTournamentName,
     addDay,
     editDay,
     addLocation,
     editLocation,
     addDivision,
     editDivision,
-    addLanguage,
     toggleSection,
     toggleTeamField,
     addTeamField,
     editTeamField,
+    deleteTeamField,
     togglePlayerField,
     addPlayerField,
     editPlayerField,
+    deletePlayerField,
+    toggleInscriptionQuestion,
     switchToIndividualSport,
     addTeam,
     editTeam,
+    openTeamPlayers,
     deleteSelectedTeams,
+    duplicateSelectedTeams,
+    moveSelectedTeams,
     exportTeams,
+    importTeams,
     toggleRefereeField,
     addRefereeField,
     addReferee,
@@ -879,7 +1382,6 @@ export function useTournamentActions() {
     addRegistrationQuestion,
     deleteRegistrationQuestion,
     downloadPoster,
-    showUpgrade,
     showSupport,
     openPresentationMode,
     updateScore,
@@ -888,5 +1390,6 @@ export function useTournamentActions() {
     showToast,
     openPrompt,
     openConfirm,
+    openAlert,
   };
 }

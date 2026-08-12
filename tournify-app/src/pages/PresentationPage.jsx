@@ -291,20 +291,13 @@ export function PresentationSlideshowPage() {
 }
 
 export function PresentationDesignPage() {
-  const { data, setDesignColor, uploadDesignAsset, addSponsorBlock, showUpgrade, openPrompt, patchPresentation, showToast } =
+  const { data, setDesignColor, uploadDesignAsset, addSponsorBlock, openPrompt, patchPresentation, showToast } =
     useTournamentActions();
 
   const assets = data.presentation.designAssets || {};
 
   return (
     <div className="page-container">
-      <div className="banner-promo">
-        <span>Découvrez les forfaits premium pour personnaliser votre tournoi</span>
-        <button type="button" className="btn-outlined primary" onClick={showUpgrade}>
-          Voir les forfaits
-        </button>
-      </div>
-
       <h2 className="section-title">Design</h2>
 
       <section style={{ marginBottom: 32 }}>
