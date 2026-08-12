@@ -17,9 +17,6 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: tournify-app
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,9 +29,11 @@ jobs:
           cache-dependency-path: tournify-app/package-lock.json
 
       - name: Install
-        run: npm ci
+        working-directory: tournify-app
+        run: npm install --no-fund --no-audit
 
       - name: Build
+        working-directory: tournify-app
         run: npm run build
         env:
           GITHUB_PAGES: "true"
@@ -48,6 +47,7 @@ jobs:
 
       # Pour que React Router fonctionne (pas de vrai fichier /login etc.)
       - name: SPA fallback
+        working-directory: tournify-app
         run: cp dist/index.html dist/404.html
 
       - name: Upload Pages artifact
