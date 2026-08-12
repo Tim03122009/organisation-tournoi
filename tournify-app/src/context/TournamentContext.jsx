@@ -3,7 +3,7 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { defaultTournament } from "../data/defaultData";
 import { normalizePointSchemes } from "../data/scoringDefaults";
 import { applyNoeLambertPreset } from "../utils/locationArea";
-import { db } from "../firebase";
+import { db, isFirebaseConfigured } from "../firebase";
 import { useAuth } from "./AuthContext";
 import { registerTeamLink, stableTeamToken } from "../utils/helpers";
 
@@ -125,6 +125,11 @@ export function TournamentProvider({ children }) {
     setData(cached);
 
     async function syncFromCloud() {
+      if (!isFirebaseConfigured || !db || userId === "local-demo") {
+        if (!cancelled && syncingUserId.current === userId) setSyncReady(true);
+        return;
+      }
+
       try {
         const docRef = doc(db, "users", userId, "data", "tournament");
         const snap = await getDoc(docRef);
@@ -180,6 +185,7 @@ export function TournamentProvider({ children }) {
     }
 
     const timer = setTimeout(async () => {
+      if (!isFirebaseConfigured || !db || userId === "local-demo") return;
       try {
         const docRef = doc(db, "users", userId, "data", "tournament");
         await setDoc(docRef, data);
