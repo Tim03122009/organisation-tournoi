@@ -50,11 +50,13 @@ function AppRoutes() {
 }
 
 export default function App() {
+  const basename = import.meta.env.BASE_URL.replace(/\/$/, "") || undefined;
+
   return (
     <AppUIProvider>
       <ErrorBoundary>
         <AuthProvider>
-          <BrowserRouter>
+          <BrowserRouter basename={basename}>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
               <Route path="/equipe/:token" element={<TeamPortalPage />} />
