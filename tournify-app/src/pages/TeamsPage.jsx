@@ -25,12 +25,14 @@ function isValidEmail(value) {
   return email !== "" && EMAIL_PATTERN.test(email);
 }
 
+function getPlayerCount(team) {
+  if (Array.isArray(team?.playerList)) return team.playerList.length;
+  return Number(team?.players) || 0;
+}
+
 function getTeamFieldValue(team, fieldId, fieldMeta) {
   if (fieldId === "name") return team.name ?? "";
-  if (fieldId === "joueurs") {
-    if (Array.isArray(team.playerList)) return team.playerList.length;
-    return team.players ?? 0;
-  }
+  if (fieldId === "joueurs") return getPlayerCount(team);
   if (fieldId === "email") return team.email ?? "";
   if (fieldId === "departement" || fieldId === "region") {
     return team.departement ?? team.region ?? "";
@@ -101,7 +103,10 @@ export default function TeamsPage() {
   const [criterionAsc, setCriterionAsc] = useState(true);
   const [sort, setSort] = useState({ key: "name", dir: "asc" });
   const [emailMenu, setEmailMenu] = useState(null);
+  const [logoPreview, setLogoPreview] = useState(null);
   const importInputRef = useRef(null);
+  const logoInputRef = useRef(null);
+  const logoTargetIdRef = useRef(null);
 
   const handleImportCsv = (event) => {
     const file = event.target.files?.[0];
@@ -395,6 +400,46 @@ export default function TeamsPage() {
     closeEmailMenu();
   };
 
+  const openLogoPicker = (teamId) => {
+    logoTargetIdRef.current = teamId;
+    logoInputRef.current?.click();
+  };
+
+  const removeTeamLogo = (teamId) => {
+    updateTeam(teamId, (t) => ({ ...t, logo: null }));
+    showToast("Logo retiré");
+  };
+
+  const handleLogoFileChange = (event) => {
+    const file = event.target.files?.[0];
+    const teamId = logoTargetIdRef.current;
+    event.target.value = "";
+    logoTargetIdRef.current = null;
+    if (!file || teamId == null) return;
+
+    if (!file.type.startsWith("image/")) {
+      showToast("Le logo doit être une image");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      showToast("Le logo ne doit pas dépasser 2 Mo");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = typeof reader.result === "string" ? reader.result : null;
+      if (!dataUrl) {
+        showToast("Impossible de lire le fichier");
+        return;
+      }
+      updateTeam(teamId, (t) => ({ ...t, logo: dataUrl }));
+      showToast("Logo ajouté");
+    };
+    reader.onerror = () => showToast("Impossible de lire le fichier");
+    reader.readAsDataURL(file);
+  };
+
   const renderColumnCell = (team, field) => {
     const value = getTeamFieldValue(team, field.id, field);
 
@@ -410,8 +455,43 @@ export default function TeamsPage() {
     }
 
     if (field.id === "logo") {
+      if (team.logo) {
+        return (
+          <div className="team-logo-cell">
+            <button
+              type="button"
+              className="team-logo-thumb"
+              onClick={() => openLogoPicker(team.id)}
+              onContextMenu={(e) => {
+                if (!e.ctrlKey && !e.metaKey) return;
+                e.preventDefault();
+                setLogoPreview({ src: team.logo, name: team.name });
+              }}
+              title="Changer le logo — Ctrl + clic droit pour agrandir"
+              aria-label={`Changer le logo de ${team.name}`}
+            >
+              <img src={team.logo} alt="" />
+            </button>
+            <button
+              type="button"
+              className="list-row-edit"
+              onClick={() => removeTeamLogo(team.id)}
+              title="Supprimer le logo"
+              aria-label={`Supprimer le logo de ${team.name}`}
+            >
+              <span className="material-icons md-18">close</span>
+            </button>
+          </div>
+        );
+      }
       return (
-        <button type="button" className="list-row-edit" onClick={() => showToast("Upload logo : à venir")}>
+        <button
+          type="button"
+          className="list-row-edit"
+          onClick={() => openLogoPicker(team.id)}
+          title="Ajouter un logo"
+          aria-label={`Ajouter un logo pour ${team.name}`}
+        >
           <span className="material-icons md-20" style={{ color: "var(--text-secondary)" }}>
             cloud_upload
           </span>
@@ -420,7 +500,7 @@ export default function TeamsPage() {
     }
 
     if (field.id === "joueurs") {
-      const count = Array.isArray(team.playerList) ? team.playerList.length : team.players || 0;
+      const count = getPlayerCount(team);
       return (
         <button
           type="button"
@@ -586,6 +666,32 @@ export default function TeamsPage() {
             </button>
           </div>
         </>
+      )}
+      {logoPreview && (
+        <div
+          className="team-logo-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label={logoPreview.name ? `Logo de ${logoPreview.name}` : "Logo"}
+          onClick={() => setLogoPreview(null)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setLogoPreview(null);
+          }}
+        >
+          <button
+            type="button"
+            className="team-logo-lightbox-close"
+            aria-label="Fermer"
+            onClick={() => setLogoPreview(null)}
+          >
+            <span className="material-icons">close</span>
+          </button>
+          <img
+            src={logoPreview.src}
+            alt={logoPreview.name ? `Logo de ${logoPreview.name}` : "Logo"}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
       )}
       <div className={`config-card config-card-collapsible teams-info-card${teamsInfoOpen ? " is-open" : ""}`}>
         <button
@@ -793,6 +899,13 @@ export default function TeamsPage() {
           accept=".csv,text/csv"
           hidden
           onChange={handleImportCsv}
+        />
+        <input
+          ref={logoInputRef}
+          type="file"
+          accept="image/*"
+          hidden
+          onChange={handleLogoFileChange}
         />
         <table className="data-table">
           <thead>

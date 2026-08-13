@@ -69,7 +69,8 @@ function mergeWithDefaults(parsed) {
               ajoute: Boolean(team.ajoute),
               fields: team.fields || {},
               playerList,
-              players: playerList.length || team.players || 0,
+              players: playerList.length,
+              logo: team.logo || null,
             };
           }),
           null
