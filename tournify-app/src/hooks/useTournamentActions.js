@@ -490,10 +490,17 @@ export function useTournamentActions() {
     ...(source.inscriptionQuestions || []).filter((q) => q.enabled),
   ];
 
-  const serializePlayersForCsv = (team) => {
+  const PLAYERS_CSV_MARKER = "_JOUEURS_DATA";
+  const PLAYERS_CSV_BLANK_ROWS = 40;
+
+  const getTeamPlayerCount = (team) => {
+    if (Array.isArray(team.playerList)) return team.playerList.length;
+    return Number(team.players) || 0;
+  };
+
+  const serializePlayerListForCsv = (team) => {
     const list = Array.isArray(team.playerList) ? team.playerList : [];
-    if (!list.length) return String(team.players ?? 0);
-    // Compact JSON (non lisible volontairement) pour conserver les joueurs
+    if (!list.length) return "";
     return JSON.stringify(
       list.map((player) => {
         const { id, ...rest } = player;
@@ -536,7 +543,7 @@ export function useTournamentActions() {
     const rows = teams.map((team) => {
       const row = { Nom: team.name };
       enabledFields.forEach((field) => {
-        if (field.id === "joueurs") row[field.label] = serializePlayersForCsv(team);
+        if (field.id === "joueurs") row[field.label] = getTeamPlayerCount(team);
         else if (field.id === "email") row[field.label] = team.email ?? "";
         else if (field.id === "departement" || field.id === "region")
           row[field.label] = team.departement ?? team.region ?? "";
@@ -555,7 +562,17 @@ export function useTournamentActions() {
     });
     const columns = ["Nom", ...enabledFields.map((f) => f.label)];
     // ; + BOM : colonnes lisibles dans Excel FR / éditeur de texte
-    const csv = toCsv(rows, columns, { delimiter: ";", bom: true });
+    let csv = toCsv(rows, columns, { delimiter: ";", bom: true });
+
+    const playerPayloads = teams
+      .map((team) => ({ Nom: team.name, Joueurs: serializePlayerListForCsv(team) }))
+      .filter((row) => row.Joueurs);
+    if (playerPayloads.length) {
+      const blank = Array.from({ length: PLAYERS_CSV_BLANK_ROWS }, () => "").join("\n");
+      const hidden = toCsv(playerPayloads, ["Nom", "Joueurs"], { delimiter: ";" });
+      csv = `${csv}\n${blank}\n${PLAYERS_CSV_MARKER}\n${hidden}`;
+    }
+
     downloadText("equipes.csv", csv, "text/csv;charset=utf-8");
     showToast(
       idSet
@@ -604,11 +621,30 @@ export function useTournamentActions() {
   };
 
   const importTeams = (csvText) => {
-    const { headers, rows } = parseCsv(csvText);
+    const raw = String(csvText ?? "").replace(/^\uFEFF/, "");
+    const markerIndex = raw.search(new RegExp(`(?:^|\\n)${PLAYERS_CSV_MARKER}\\s*(?:\\n|$)`, "i"));
+    const mainText = markerIndex >= 0 ? raw.slice(0, markerIndex) : raw;
+    const hiddenText = markerIndex >= 0 ? raw.slice(markerIndex).replace(new RegExp(`^\\s*${PLAYERS_CSV_MARKER}\\s*`, "i"), "") : "";
+
+    const { headers, rows } = parseCsv(mainText);
     if (!headers.length || !rows.length) {
       showToast("Fichier CSV vide ou invalide");
       return;
     }
+
+    const hiddenParsed = hiddenText.trim() ? parseCsv(hiddenText) : { headers: [], rows: [] };
+    const hiddenNameHeader =
+      hiddenParsed.headers.find((h) => /^nom$/i.test(h)) || hiddenParsed.headers[0];
+    const hiddenPlayersHeader =
+      hiddenParsed.headers.find((h) => /^joueurs$/i.test(h)) ||
+      hiddenParsed.headers.find((h) => h !== hiddenNameHeader);
+    const hiddenPlayersByName = new Map();
+    hiddenParsed.rows.forEach((row) => {
+      const name = String(row[hiddenNameHeader] ?? "").trim();
+      if (!name || name === PLAYERS_CSV_MARKER) return;
+      const parsed = parsePlayersFromCsv(row[hiddenPlayersHeader]);
+      if (parsed?.playerList) hiddenPlayersByName.set(name.toLowerCase(), parsed);
+    });
 
     const nameHeader =
       headers.find((h) => /^nom$/i.test(h)) ||
@@ -635,7 +671,7 @@ export function useTournamentActions() {
 
     headers.forEach((header) => {
       const key = header.trim().toLowerCase();
-      if (!key || skipHeaders.has(key)) return;
+      if (!key || skipHeaders.has(key) || key.startsWith("_")) return;
 
       const hasAnyValue = rows.some((row) => String(row[header] ?? "").trim() !== "");
       if (!hasAnyValue) return;
@@ -691,13 +727,16 @@ export function useTournamentActions() {
 
     rows.forEach((row) => {
       const name = String(row[nameHeader] ?? "").trim();
-      if (!name) return;
+      if (!name || name === PLAYERS_CSV_MARKER) return;
 
       const topLevel = {};
       const fieldValues = {};
       importFields.forEach((field) => {
         applyImportedCell(field, row[field.csvHeader], topLevel, fieldValues);
       });
+
+      const hiddenPlayers = hiddenPlayersByName.get(name.toLowerCase());
+      if (hiddenPlayers) Object.assign(topLevel, hiddenPlayers);
 
       const existingIndex = teams.findIndex((t) => t.name.toLowerCase() === name.toLowerCase());
       if (existingIndex >= 0) {
