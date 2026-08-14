@@ -6,6 +6,7 @@ import TieBreakEditorSection from "./TieBreakEditorSection";
 import ExtraPointsEditorSection from "./ExtraPointsEditorSection";
 import PlayerStatsEditorSection from "./PlayerStatsEditorSection";
 import TeamEditorSection from "./TeamEditorSection";
+import RefereeEditorSection from "./RefereeEditorSection";
 import PlayersEditorSection from "./PlayersEditorSection";
 import DepartementAutocomplete from "./DepartementAutocomplete";
 import { parseDateInput, toDisplayDate } from "../utils/helpers";
@@ -126,6 +127,11 @@ export default function AppModal() {
       )}
       {modal.type === "teamEditor" && (
         <button type="submit" form="team-editor-form" className="btn-contained">
+          {modal.confirmText}
+        </button>
+      )}
+      {modal.type === "refereeEditor" && (
+        <button type="submit" form="referee-editor-form" className="btn-contained">
           {modal.confirmText}
         </button>
       )}
@@ -349,6 +355,9 @@ export default function AppModal() {
           )}
           {modal.type === "teamEditor" && (
             <TeamEditorSection modal={modal} formId="team-editor-form" />
+          )}
+          {modal.type === "refereeEditor" && (
+            <RefereeEditorSection modal={modal} formId="referee-editor-form" />
           )}
           {modal.type === "playersEditor" && (
             <PlayersEditorSection modal={modal} formId="players-editor" />

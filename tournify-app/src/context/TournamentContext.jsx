@@ -5,7 +5,8 @@ import { normalizePointSchemes } from "../data/scoringDefaults";
 import { applyNoeLambertPreset } from "../utils/locationArea";
 import { db, isFirebaseConfigured } from "../firebase";
 import { useAuth } from "./AuthContext";
-import { registerTeamLink, stableTeamToken } from "../utils/helpers";
+import { registerRefereeLink, registerTeamLink, stableRefereeToken, stableTeamToken } from "../utils/helpers";
+import { normalizeRefereeExperience } from "../utils/refereeExperience";
 
 const STORAGE_KEY = "gestion-tournoi-data";
 
@@ -22,6 +23,66 @@ function ensureTeamTokens(teams, keyName) {
       connectionToken,
     };
   });
+}
+
+function ensureRefereeTokens(referees, keyName) {
+  return (referees || []).map((ref) => {
+    const connectionToken = ref.connectionToken || stableRefereeToken(ref.id);
+    registerRefereeLink(connectionToken, ref.id, keyName);
+    return {
+      ...ref,
+      connectionToken,
+      email: ref.email ?? "",
+      telephone: ref.telephone ?? "",
+      club: ref.club ?? "",
+      niveau: ref.niveau ?? "",
+      experience: normalizeRefereeExperience(ref.experience),
+      pays: ref.pays ?? "",
+      divisions: ref.divisions ?? "",
+      present: Boolean(ref.present),
+      disponible: ref.disponible !== false,
+      fromTeamId: ref.fromTeamId ?? null,
+      fields: ref.fields || {},
+    };
+  });
+}
+
+function mergeRefereeFields(parsedFields) {
+  const existing = Array.isArray(parsedFields) ? parsedFields : [];
+  const hasNewShape = existing.some((f) => f.id === "present" || f.standard === true);
+  if (hasNewShape) {
+    const mapped = existing.map((field) => {
+      if (field.id === "lien") return { ...field, help: true, standard: field.standard !== false };
+      if (field.id === "club") return { ...field, enabled: true, standard: true };
+      if (field.id === "experience") return { ...field, enabled: true, standard: true, help: true };
+      if (field.id === "divisions") return { ...field, label: "Division", standard: true };
+      return field;
+    });
+    if (!mapped.some((f) => f.id === "experience")) {
+      const insertAt = mapped.findIndex((f) => f.id === "divisions");
+      const experienceField = {
+        id: "experience",
+        label: "Expérience",
+        standard: true,
+        enabled: true,
+        help: true,
+      };
+      if (insertAt >= 0) mapped.splice(insertAt, 0, experienceField);
+      else mapped.push(experienceField);
+    }
+    return mapped;
+  }
+
+  const byId = new Map(existing.map((f) => [f.id, f]));
+  const mergedStandard = defaultTournament.refereeFields.map((field) => {
+    const prev = byId.get(field.id);
+    if (!prev) return field;
+    return { ...field, enabled: prev.enabled, label: prev.label || field.label };
+  });
+  const extras = existing
+    .filter((f) => !defaultTournament.refereeFields.some((d) => d.id === f.id))
+    .map((f) => ({ ...f, standard: false, enabled: f.enabled !== false }));
+  return [...mergedStandard, ...extras];
 }
 
 function mergeWithDefaults(parsed) {
@@ -76,9 +137,14 @@ function mergeWithDefaults(parsed) {
           null
         )
       : ensureTeamTokens(defaultTournament.teams, null),
+    refereeFields: mergeRefereeFields(parsed.refereeFields),
+    referees: Array.isArray(parsed.referees)
+      ? ensureRefereeTokens(parsed.referees, null)
+      : ensureRefereeTokens(defaultTournament.referees, null),
     pointSchemes: normalizePointSchemes(parsed.pointSchemes),
     extraPointTypes: Array.isArray(parsed.extraPointTypes) ? parsed.extraPointTypes : [],
     playerStatTypes: Array.isArray(parsed.playerStatTypes) ? parsed.playerStatTypes : [],
+    teamsAsReferees: Boolean(parsed.teamsAsReferees),
     presentation: { ...defaultTournament.presentation, ...parsed.presentation },
     scores: { ...defaultTournament.scores, ...parsed.scores },
   };
@@ -169,6 +235,7 @@ export function TournamentProvider({ children }) {
       const withLinks = {
         ...data,
         teams: ensureTeamTokens(data.teams, key),
+        referees: ensureRefereeTokens(data.referees, key),
       };
       localStorage.setItem(key, JSON.stringify(withLinks));
       localStorage.setItem(STORAGE_KEY, JSON.stringify(withLinks));

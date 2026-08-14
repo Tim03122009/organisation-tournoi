@@ -6,16 +6,19 @@ import {
   downloadText,
   formatFrenchDayLabel,
   generateAdminLink,
+  generateRefereeToken,
   generateTeamToken,
   inferDayDate,
   nextId,
   parseCsv,
+  REFEREE_ALL_DIVISIONS,
   toCsv,
 } from "../utils/helpers";
+import { assignRefereesPreferringTerrain, normalizeRefereeExperience } from "../utils/refereeExperience";
 
 export function useTournamentActions() {
   const { data, setData, update } = useTournament();
-  const { showToast, openPrompt, openConfirm, openAlert, openDayEditor, openLocationEditor, openDivisionEditor, openInfoFieldEditor, openChoiceList, openTeamEditor, openPlayersEditor } = useAppUI();
+  const { showToast, openPrompt, openConfirm, openAlert, openDayEditor, openLocationEditor, openDivisionEditor, openInfoFieldEditor, openChoiceList, openTeamEditor, openRefereeEditor, openPlayersEditor } = useAppUI();
 
   const patch = useCallback(
     (fn) =>
@@ -319,8 +322,8 @@ export function useTournamentActions() {
       title: "Ajouter une équipe",
       label: "Nom de l'équipe",
       onSubmit: (name) => {
-        patch((p) => ({
-          teams: [
+        patch((p) => {
+          const teams = [
             ...p.teams,
             {
               id: nextId(p.teams),
@@ -337,8 +340,9 @@ export function useTournamentActions() {
               playerList: [],
               fields: {},
             },
-          ],
-        }));
+          ];
+          return withTeamRefereeSync(p, { teams });
+        });
         showToast("Équipe ajoutée");
       },
     });
@@ -363,8 +367,8 @@ export function useTournamentActions() {
       fields,
       divisions: data.divisions || [],
       onSubmit: (next) => {
-        patch((p) => ({
-          teams: p.teams.map((t) =>
+        patch((p) => {
+          const teams = p.teams.map((t) =>
             t.id === id
               ? {
                   ...t,
@@ -378,8 +382,14 @@ export function useTournamentActions() {
                   fields: { ...(t.fields || {}), ...(next.fields || {}) },
                 }
               : t
-          ),
-        }));
+          );
+          const prev = p.teams.find((t) => t.id === id);
+          const renamed =
+            prev && next.name && prev.name !== next.name
+              ? renameRefereeInSchedule(p, prev.name, next.name)
+              : {};
+          return withTeamRefereeSync(p, { teams, ...renamed });
+        });
         showToast("Équipe mise à jour");
       },
     });
@@ -424,16 +434,19 @@ export function useTournamentActions() {
         const names = new Set(
           data.teams.filter((t) => ids.includes(t.id)).map((t) => t.name)
         );
-        patch((p) => ({
-          teams: p.teams.filter((t) => !ids.includes(t.id)),
-          phases: (p.phases || []).map((phase) => ({
-            ...phase,
-            items: (phase.items || []).map((item) => ({
-              ...item,
-              teams: (item.teams || []).filter((teamName) => !names.has(teamName)),
+        patch((p) => {
+          const next = {
+            teams: p.teams.filter((t) => !ids.includes(t.id)),
+            phases: (p.phases || []).map((phase) => ({
+              ...phase,
+              items: (phase.items || []).map((item) => ({
+                ...item,
+                teams: (item.teams || []).filter((teamName) => !names.has(teamName)),
+              })),
             })),
-          })),
-        }));
+          };
+          return withTeamRefereeSync({ ...p, ...next }, next);
+        });
         onDone?.();
         showToast("Équipe(s) supprimée(s)");
       },
@@ -452,7 +465,7 @@ export function useTournamentActions() {
           connectionToken: generateTeamToken(),
           fields: { ...(t.fields || {}) },
         }));
-      return { teams: [...p.teams, ...copies] };
+      return withTeamRefereeSync(p, { teams: [...p.teams, ...copies] });
     });
     onDone?.();
     showToast(ids.length > 1 ? "Équipes dupliquées" : "Équipe dupliquée");
@@ -469,11 +482,13 @@ export function useTournamentActions() {
         value: d.name,
       })),
       onSelect: (option) => {
-        patch((p) => ({
-          teams: p.teams.map((t) =>
-            ids.includes(t.id) ? { ...t, division: option.value } : t
-          ),
-        }));
+        patch((p) =>
+          withTeamRefereeSync(p, {
+            teams: p.teams.map((t) =>
+              ids.includes(t.id) ? { ...t, division: option.value } : t
+            ),
+          })
+        );
         onDone?.();
         showToast(`Équipe(s) déplacée(s) vers ${option.label}`);
       },
@@ -774,7 +789,7 @@ export function useTournamentActions() {
       return;
     }
 
-    patch({ teams, teamFields, inscriptionQuestions });
+    patch({ teams, teamFields, inscriptionQuestions, ...syncTeamReferees({ ...data, teams, teamsAsReferees: data.teamsAsReferees }, data.teamsAsReferees) });
     showToast(
       [
         added ? `${added} ajoutée${added > 1 ? "s" : ""}` : null,
@@ -789,20 +804,204 @@ export function useTournamentActions() {
   };
 
   // ——— Arbitres ———
+  const BOOLEAN_REFEREE_FIELDS = ["present", "disponible"];
+
+  const createReferee = (name, extras = {}) => ({
+    id: extras.id,
+    name,
+    email: extras.email ?? "",
+    telephone: extras.telephone ?? "",
+    club: extras.club ?? "",
+    niveau: extras.niveau ?? "",
+    experience: normalizeRefereeExperience(extras.experience),
+    pays: extras.pays ?? "",
+    divisions: extras.divisions ?? "",
+    present: Boolean(extras.present),
+    disponible: extras.disponible !== false,
+    connectionToken: extras.connectionToken || generateRefereeToken(),
+    fields: { ...(extras.fields || {}) },
+    fromTeamId: extras.fromTeamId ?? null,
+  });
+
+  const refereeFromTeam = (team, id) =>
+    createReferee(team.name, {
+      id,
+      club: team.name,
+      divisions: team.division || REFEREE_ALL_DIVISIONS,
+      email: team.email || "",
+      fromTeamId: team.id,
+    });
+
+  const syncTeamReferees = (p, enabled = p.teamsAsReferees) => {
+    if (!enabled) {
+      const removedNames = new Set(
+        (p.referees || []).filter((r) => r.fromTeamId != null).map((r) => r.name)
+      );
+      return {
+        teamsAsReferees: false,
+        referees: (p.referees || []).filter((r) => r.fromTeamId == null),
+        ...clearRefereeFromSchedule(p, removedNames),
+      };
+    }
+
+    const teams = p.teams || [];
+    const teamIds = new Set(teams.map((t) => t.id));
+    let referees = (p.referees || []).filter((r) => r.fromTeamId == null || teamIds.has(r.fromTeamId));
+    const byTeamId = new Map(
+      referees.filter((r) => r.fromTeamId != null).map((r) => [r.fromTeamId, r])
+    );
+    const takenNames = new Set(
+      referees.filter((r) => r.fromTeamId == null).map((r) => r.name.toLowerCase())
+    );
+    let idCounter = nextId(referees);
+
+    teams.forEach((team) => {
+      const existing = byTeamId.get(team.id);
+      if (existing) {
+        referees = referees.map((r) =>
+          r.id === existing.id ? { ...r, name: team.name, club: team.name } : r
+        );
+        return;
+      }
+      if (takenNames.has(team.name.toLowerCase())) return;
+      referees = [...referees, refereeFromTeam(team, idCounter)];
+      takenNames.add(team.name.toLowerCase());
+      idCounter += 1;
+    });
+
+    const keptIds = new Set(referees.map((r) => r.id));
+    const removedNames = new Set(
+      (p.referees || [])
+        .filter((r) => r.fromTeamId != null && !keptIds.has(r.id))
+        .map((r) => r.name)
+    );
+
+    return {
+      teamsAsReferees: true,
+      referees,
+      ...(removedNames.size ? clearRefereeFromSchedule(p, removedNames) : {}),
+    };
+  };
+
+  const withTeamRefereeSync = (p, extra) => {
+    const next = { ...p, ...extra };
+    if (!next.teamsAsReferees) return extra;
+    return { ...extra, ...syncTeamReferees(next, true) };
+  };
+
+  const renameRefereeInSchedule = (p, oldName, newName) => {
+    if (!oldName || !newName || oldName === newName) return {};
+    return {
+      terrains: (p.terrains || []).map((terrain) => ({
+        ...terrain,
+        events: (terrain.events || []).map((event) => {
+          const next = { ...event };
+          if (event.referee === oldName) next.referee = newName;
+          if (event.referee2 === oldName) next.referee2 = newName;
+          return next;
+        }),
+      })),
+      scores: {
+        ...p.scores,
+        matchSlots: (p.scores?.matchSlots || []).map((slot) => ({
+          ...slot,
+          matches: (slot.matches || []).map((match) => {
+            const next = { ...match };
+            if (match.referee === oldName) next.referee = newName;
+            if (match.referee2 === oldName) next.referee2 = newName;
+            return next;
+          }),
+        })),
+      },
+    };
+  };
+
+  const clearRefereeFromSchedule = (p, names) => {
+    const nameSet = names instanceof Set ? names : new Set(names);
+    return {
+      terrains: (p.terrains || []).map((terrain) => ({
+        ...terrain,
+        events: (terrain.events || []).map((event) => {
+          if (!nameSet.has(event.referee) && !nameSet.has(event.referee2)) return event;
+          const next = { ...event };
+          if (nameSet.has(event.referee)) next.referee = "";
+          if (nameSet.has(event.referee2)) next.referee2 = "";
+          if (!next.referee2) next.binomeStatus = "";
+          return next;
+        }),
+      })),
+      scores: {
+        ...p.scores,
+        matchSlots: (p.scores?.matchSlots || []).map((slot) => ({
+          ...slot,
+          matches: (slot.matches || []).map((match) => {
+            if (!nameSet.has(match.referee) && !nameSet.has(match.referee2)) return match;
+            const next = { ...match };
+            if (nameSet.has(match.referee)) next.referee = "";
+            if (nameSet.has(match.referee2)) next.referee2 = "";
+            return next;
+          }),
+        })),
+      },
+    };
+  };
+
   const toggleRefereeField = (id) =>
     patch((p) => ({
       refereeFields: p.refereeFields.map((f) => (f.id === id ? { ...f, enabled: !f.enabled } : f)),
     }));
 
   const addRefereeField = () =>
-    openPrompt({
-      title: "Nouveau champ arbitre",
-      label: "Libellé",
-      onSubmit: (label) => {
+    openInfoFieldEditor({
+      title: "Ajouter un champ d'information",
+      onSubmit: ({ label, answerWithCheckbox }) => {
         patch((p) => ({
-          refereeFields: [...p.refereeFields, { id: `r_${nextId(p.refereeFields)}`, label, enabled: true }],
+          refereeFields: [
+            ...p.refereeFields,
+            {
+              id: `rf_${Date.now()}`,
+              label,
+              standard: false,
+              enabled: true,
+              ...(answerWithCheckbox ? { inputType: "checkbox" } : {}),
+            },
+          ],
         }));
         showToast("Champ ajouté");
+      },
+    });
+
+  const editRefereeField = (id) => {
+    const field = data.refereeFields.find((f) => f.id === id);
+    openPrompt({
+      title: "Modifier le champ",
+      label: "Nom",
+      defaultValue: field?.label,
+      confirmText: "Sauvegarder",
+      onSubmit: (label) => {
+        patch((p) => ({
+          refereeFields: p.refereeFields.map((f) => (f.id === id ? { ...f, label } : f)),
+        }));
+        showToast("Champ mis à jour");
+      },
+    });
+  };
+
+  const deleteRefereeField = (id) =>
+    openConfirm({
+      title: "Supprimer le champ",
+      message: "Supprimer ce champ d'information ?",
+      confirmText: "Supprimer",
+      onConfirm: () => {
+        patch((p) => ({
+          refereeFields: p.refereeFields.filter((f) => f.id !== id),
+          referees: (p.referees || []).map((ref) => {
+            const fields = { ...(ref.fields || {}) };
+            delete fields[id];
+            return { ...ref, fields };
+          }),
+        }));
+        showToast("Champ supprimé");
       },
     });
 
@@ -812,7 +1011,7 @@ export function useTournamentActions() {
       label: "Nom",
       onSubmit: (name) => {
         patch((p) => ({
-          referees: [...p.referees, { id: nextId(p.referees), name, link: "", divisions: "" }],
+          referees: [...p.referees, createReferee(name, { id: nextId(p.referees) })],
         }));
         showToast("Arbitre ajouté");
       },
@@ -820,22 +1019,275 @@ export function useTournamentActions() {
 
   const editReferee = (id) => {
     const ref = data.referees.find((r) => r.id === id);
-    openPrompt({
+    if (!ref) return;
+
+    const gridOnly = new Set(["present", "disponible", "lien"]);
+    const fields = (data.refereeFields || []).filter(
+      (f) => (f.standard === false || f.enabled) && !gridOnly.has(f.id) && f.inputType !== "checkbox"
+    );
+
+    openRefereeEditor({
       title: "Modifier l'arbitre",
-      defaultValue: ref?.name,
-      onSubmit: (name) => {
+      referee: ref,
+      fields,
+      divisions: data.divisions || [],
+      teams: data.teams || [],
+      onSubmit: (next) => {
         patch((p) => ({
-          referees: p.referees.map((r) => (r.id === id ? { ...r, name } : r)),
+          referees: p.referees.map((r) =>
+            r.id === id
+              ? {
+                  ...r,
+                  name: next.name,
+                  email: next.email,
+                  telephone: next.telephone,
+                  club: next.club,
+                  niveau: next.niveau,
+                  experience: normalizeRefereeExperience(next.experience),
+                  pays: next.pays,
+                  divisions: next.divisions,
+                  fields: { ...(r.fields || {}), ...(next.fields || {}) },
+                }
+              : r
+          ),
+          ...renameRefereeInSchedule(p, ref.name, next.name),
         }));
         showToast("Arbitre mis à jour");
       },
     });
   };
 
-  const exportReferees = () => {
-    const csv = toCsv(data.referees, ["name", "link", "divisions"]);
+  const deleteSelectedReferees = (ids, onDone) => {
+    if (!ids.length) return showToast("Sélectionnez au moins un arbitre");
+    openConfirm({
+      title: "Supprimer des arbitres",
+      message: "Supprimer les arbitres sélectionnés ? Ils seront aussi retirés des matchs déjà planifiés.",
+      confirmText: "Supprimer",
+      confirmContained: true,
+      onConfirm: () => {
+        const names = new Set(
+          data.referees.filter((r) => ids.includes(r.id)).map((r) => r.name)
+        );
+        patch((p) => ({
+          referees: p.referees.filter((r) => !ids.includes(r.id)),
+          ...clearRefereeFromSchedule(p, names),
+        }));
+        onDone?.();
+        showToast("Arbitre(s) supprimé(s)");
+      },
+    });
+  };
+
+  const duplicateSelectedReferees = (ids, onDone) => {
+    if (!ids.length) return showToast("Sélectionnez au moins un arbitre");
+    patch((p) => {
+      const copies = p.referees
+        .filter((r) => ids.includes(r.id))
+        .map((r, index) =>
+          createReferee(`${r.name} (copie)`, {
+            ...r,
+            id: nextId(p.referees) + index,
+            connectionToken: generateRefereeToken(),
+            fields: { ...(r.fields || {}) },
+          })
+        );
+      return { referees: [...p.referees, ...copies] };
+    });
+    onDone?.();
+    showToast(ids.length > 1 ? "Arbitres dupliqués" : "Arbitre dupliqué");
+  };
+
+  const getRefereeCsvFields = (source = data) =>
+    (source.refereeFields || []).filter(
+      (f) => (f.standard === false || f.enabled) && f.id !== "lien"
+    );
+
+  const applyImportedRefereeCell = (field, raw, topLevel, fieldValues) => {
+    if (raw === undefined || raw === "") return;
+    if (field.id === "lien") return;
+    if (BOOLEAN_REFEREE_FIELDS.includes(field.id) || field.inputType === "checkbox") {
+      const parsed = parseOuiNon(raw);
+      if (BOOLEAN_REFEREE_FIELDS.includes(field.id)) topLevel[field.id] = parsed;
+      else fieldValues[field.id] = parsed;
+    } else if (field.id === "experience") {
+      topLevel.experience = normalizeRefereeExperience(raw);
+    } else if (["email", "telephone", "club", "niveau", "pays", "divisions"].includes(field.id)) {
+      topLevel[field.id] = String(raw);
+    } else {
+      fieldValues[field.id] = String(raw);
+    }
+  };
+
+  const exportReferees = (refereeIds) => {
+    const idSet = Array.isArray(refereeIds) && refereeIds.length ? new Set(refereeIds) : null;
+    const referees = idSet ? data.referees.filter((r) => idSet.has(r.id)) : data.referees;
+    if (!referees.length) {
+      showToast("Aucun arbitre à exporter");
+      return;
+    }
+
+    const enabledFields = getRefereeCsvFields();
+    const rows = referees.map((ref) => {
+      const row = { Nom: ref.name };
+      enabledFields.forEach((field) => {
+        if (BOOLEAN_REFEREE_FIELDS.includes(field.id) || field.inputType === "checkbox") {
+          const rawValue =
+            field.inputType === "checkbox"
+              ? ref.fields?.[field.id] ?? ref[field.id]
+              : ref[field.id];
+          row[field.label] = rawValue ? "oui" : "non";
+        } else {
+          const value = ref.fields?.[field.id] ?? ref[field.id] ?? "";
+          row[field.label] = typeof value === "boolean" ? (value ? "oui" : "non") : value;
+        }
+      });
+      return row;
+    });
+    const columns = ["Nom", ...enabledFields.map((f) => f.label)];
+    const csv = toCsv(rows, columns, { delimiter: ";", bom: true });
     downloadText("arbitres.csv", csv, "text/csv;charset=utf-8");
-    showToast("Export téléchargé");
+    showToast(
+      idSet
+        ? `${referees.length} arbitre${referees.length > 1 ? "s" : ""} exporté${referees.length > 1 ? "s" : ""}`
+        : "Export téléchargé"
+    );
+  };
+
+  const importReferees = (csvText) => {
+    const { headers, rows } = parseCsv(csvText);
+    if (!headers.length || !rows.length) {
+      showToast("Fichier CSV vide ou invalide");
+      return;
+    }
+
+    const nameHeader =
+      headers.find((h) => /^nom$/i.test(h)) ||
+      headers.find((h) => /^name$/i.test(h)) ||
+      headers[0];
+
+    const skipHeaders = new Set(
+      [nameHeader, "lien", "lien de connexion"].map((h) => String(h).trim().toLowerCase())
+    );
+
+    let refereeFields = [...(data.refereeFields || [])];
+    const importFields = [];
+    let columnsActivated = 0;
+
+    const findByLabelOrId = (list, header) => {
+      const key = header.trim().toLowerCase();
+      return list.find(
+        (item) =>
+          String(item.label).trim().toLowerCase() === key ||
+          String(item.id).trim().toLowerCase() === key
+      );
+    };
+
+    headers.forEach((header) => {
+      const key = header.trim().toLowerCase();
+      if (!key || skipHeaders.has(key) || key.startsWith("_")) return;
+
+      const hasAnyValue = rows.some((row) => String(row[header] ?? "").trim() !== "");
+      if (!hasAnyValue) return;
+
+      const existingField = findByLabelOrId(refereeFields, header);
+      if (existingField) {
+        if (existingField.id === "lien") return;
+        if (existingField.standard !== false && !existingField.enabled) {
+          refereeFields = refereeFields.map((f) =>
+            f.id === existingField.id ? { ...f, enabled: true } : f
+          );
+          columnsActivated += 1;
+        }
+        importFields.push({ ...existingField, enabled: true, csvHeader: header });
+        return;
+      }
+
+      let id = slugifyFieldId(header);
+      const usedIds = new Set([...refereeFields.map((f) => f.id), ...importFields.map((f) => f.id)]);
+      if (usedIds.has(id)) {
+        let n = 2;
+        while (usedIds.has(`${id}_${n}`)) n += 1;
+        id = `${id}_${n}`;
+      }
+      const newField = { id, label: header.trim(), standard: false, enabled: true };
+      refereeFields = [...refereeFields, newField];
+      importFields.push({ ...newField, csvHeader: header });
+      columnsActivated += 1;
+    });
+
+    const referees = [...data.referees];
+    let idCounter = nextId(referees);
+    let added = 0;
+    let updated = 0;
+
+    rows.forEach((row) => {
+      const name = String(row[nameHeader] ?? "").trim();
+      if (!name) return;
+
+      const topLevel = {};
+      const fieldValues = {};
+      importFields.forEach((field) => {
+        applyImportedRefereeCell(field, row[field.csvHeader], topLevel, fieldValues);
+      });
+
+      const existingIndex = referees.findIndex((r) => r.name.toLowerCase() === name.toLowerCase());
+      if (existingIndex >= 0) {
+        const current = referees[existingIndex];
+        referees[existingIndex] = {
+          ...current,
+          ...topLevel,
+          fields: { ...(current.fields || {}), ...fieldValues },
+        };
+        updated += 1;
+      } else {
+        referees.push(
+          createReferee(name, {
+            id: idCounter,
+            fields: { ...fieldValues },
+            ...topLevel,
+          })
+        );
+        idCounter += 1;
+        added += 1;
+      }
+    });
+
+    if (!added && !updated) {
+      showToast("Aucun arbitre importé");
+      return;
+    }
+
+    patch({ referees, refereeFields });
+    showToast(
+      [
+        added ? `${added} ajouté${added > 1 ? "s" : ""}` : null,
+        updated ? `${updated} mis${updated > 1 ? "s" : ""} à jour` : null,
+        columnsActivated
+          ? `${columnsActivated} colonne${columnsActivated > 1 ? "s" : ""} ajoutée${columnsActivated > 1 ? "s" : ""}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(", ")
+    );
+  };
+
+  const toggleTeamsAsReferees = () => {
+    if (data.teamsAsReferees) {
+      patch((p) => syncTeamReferees(p, false));
+      showToast("Équipes retirées de la liste des arbitres");
+      return;
+    }
+    openConfirm({
+      title: "Équipes en qualité d'arbitres",
+      message:
+        "Avec cette option, toutes les équipes sont automatiquement ajoutées en qualité d'arbitres.",
+      confirmText: "Continuer",
+      confirmContained: true,
+      onConfirm: () => {
+        patch((p) => syncTeamReferees(p, true));
+        showToast("Équipes ajoutées en qualité d'arbitres");
+      },
+    });
   };
 
   // ——— Admins ———
@@ -1112,11 +1564,47 @@ export function useTournamentActions() {
       terrains: p.terrains.map((t) => ({
         ...t,
         events: t.events.map((e) =>
-          e.type === "match" ? { ...e, referee: refereeName } : e
+          e.type === "match" ? { ...e, referee: refereeName, referee2: "", binomeStatus: "" } : e
         ),
       })),
     }));
     showToast(`Arbitre ${refereeName} assigné à tous les matchs`);
+  };
+
+  const assignRefereesByExperience = () => {
+    if (!(data.referees || []).length) {
+      showToast("Aucun arbitre à placer");
+      return;
+    }
+    patch((p) => ({
+      terrains: assignRefereesPreferringTerrain(p.terrains, p.referees),
+    }));
+    showToast("Arbitres placés en restant sur leur terrain");
+  };
+
+  const validateRefereeBinome = (terrainId, eventId) => {
+    patch((p) => {
+      let pair = null;
+      for (const terrain of p.terrains || []) {
+        if (terrain.id !== terrainId) continue;
+        const event = (terrain.events || []).find((item) => item.id === eventId);
+        if (event) pair = { referee: event.referee || "", referee2: event.referee2 || "" };
+      }
+      return {
+        terrains: (p.terrains || []).map((terrain) => ({
+          ...terrain,
+          events: (terrain.events || []).map((event) => {
+            if (event.type !== "match" || event.binomeStatus !== "needs-validation") return event;
+            if (!pair) return event;
+            if ((event.referee || "") === pair.referee && (event.referee2 || "") === pair.referee2) {
+              return { ...event, binomeStatus: "validated" };
+            }
+            return event;
+          }),
+        })),
+      };
+    });
+    showToast("Binôme validé");
   };
 
   const exportCalendar = () => {
@@ -1131,11 +1619,12 @@ export function useTournamentActions() {
             team2: e.team2,
             poule: e.poule,
             referee: e.referee,
+            referee2: e.referee2 || "",
           });
         }
       });
     });
-    const csv = toCsv(rows, ["terrain", "time", "team1", "team2", "poule", "referee"]);
+    const csv = toCsv(rows, ["terrain", "time", "team1", "team2", "poule", "referee", "referee2"]);
     downloadText("calendrier.csv", csv, "text/csv;charset=utf-8");
     showToast("Calendrier exporté");
   };
@@ -1381,9 +1870,15 @@ export function useTournamentActions() {
     importTeams,
     toggleRefereeField,
     addRefereeField,
+    editRefereeField,
+    deleteRefereeField,
     addReferee,
     editReferee,
+    deleteSelectedReferees,
+    duplicateSelectedReferees,
     exportReferees,
+    importReferees,
+    toggleTeamsAsReferees,
     addAdmin,
     removeAdmin,
     setStructureDivision,
@@ -1401,6 +1896,8 @@ export function useTournamentActions() {
     planAll,
     clearSchedule,
     assignRefereeToAll,
+    assignRefereesByExperience,
+    validateRefereeBinome,
     exportCalendar,
     copyWebsiteUrl,
     toggleShowInApp,
@@ -1430,5 +1927,6 @@ export function useTournamentActions() {
     openPrompt,
     openConfirm,
     openAlert,
+    openChoiceList,
   };
 }

@@ -192,11 +192,10 @@
 
 .field-help-tooltip {
   position: absolute;
-  left: 50%;
+  left: 0;
   bottom: calc(100% + 8px);
-  transform: translateX(-50%);
-  width: max-content;
-  max-width: 320px;
+  width: min(12.5rem, calc(100vw - var(--sidebar-width) - 2rem));
+  max-width: min(12.5rem, calc(100vw - var(--sidebar-width) - 2rem));
   padding: 8px 12px;
   border-radius: 4px;
   background: #616161;
@@ -206,12 +205,20 @@
   line-height: 1.4;
   text-align: left;
   white-space: normal;
+  overflow-wrap: break-word;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
   transition: opacity 0.12s ease;
   z-index: 20;
+}
+
+@media (max-width: 767px) {
+  .field-help-tooltip {
+    width: min(12.5rem, calc(100vw - 2rem));
+    max-width: min(12.5rem, calc(100vw - 2rem));
+  }
 }
 
 .field-help:hover .field-help-tooltip,
@@ -450,6 +457,12 @@
   gap: 8px;
   color: var(--text-secondary);
   font-size: 0.75rem;
+}
+
+.match-card.is-binome-pending {
+  border: 2px solid #d32f2f;
+  border-radius: var(--radius);
+  background: rgba(211, 47, 47, 0.04);
 }
 
 .poule-badge {
@@ -1650,6 +1663,34 @@ textarea.mui-input {
 .team-portal-match-list span {
   color: var(--text-secondary);
   font-size: 0.8125rem;
+}
+
+.referee-portal-score {
+  color: var(--text-primary) !important;
+  font-weight: 500;
+}
+
+.referee-portal-score-edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.referee-portal-score-edit input {
+  width: 88px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font: inherit;
+}
+
+.referee-portal-score-edit em {
+  width: 100%;
+  color: var(--error, #c62828);
+  font-size: 0.75rem;
+  font-style: normal;
 }
 
 .team-portal-footer {

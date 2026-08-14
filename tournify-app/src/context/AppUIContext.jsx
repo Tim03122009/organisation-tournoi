@@ -301,6 +301,37 @@ export function AppUIProvider({ children }) {
     [closeModal]
   );
 
+  const openRefereeEditor = useCallback(
+    ({
+      title = "Modifier l'arbitre",
+      referee,
+      fields = [],
+      divisions = [],
+      teams = [],
+      confirmText = "Sauvegarder",
+      onSubmit,
+    }) => {
+      setModal({
+        type: "refereeEditor",
+        title,
+        referee,
+        fields,
+        divisions,
+        teams,
+        confirmText,
+        onSubmit: (value) => {
+          try {
+            onSubmit(value);
+          } catch (err) {
+            console.error(err);
+          }
+          closeModal();
+        },
+      });
+    },
+    [closeModal]
+  );
+
   const openPlayersEditor = useCallback(
     ({ title = "Joueurs", team, players = [], playerFields = [], onChange }) => {
       setModal({
@@ -335,6 +366,7 @@ export function AppUIProvider({ children }) {
         openInfoFieldEditor,
         openChoiceList,
         openTeamEditor,
+        openRefereeEditor,
         openPlayersEditor,
       }}
     >

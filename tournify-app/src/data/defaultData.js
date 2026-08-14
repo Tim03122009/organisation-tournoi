@@ -19,6 +19,7 @@ export const defaultTournament = {
   calendarLocked: false,
   planSelection: { poules: "", days: "", terrains: "" },
   refereeMode: "one_per_match",
+  teamsAsReferees: false,
   days: [{ id: 1, date: "2026-06-17", label: "Mercredi 17 juin 2026" }],
   locations: [
     {
@@ -69,14 +70,21 @@ export const defaultTournament = {
     { id: 8, name: "Equipe A", email: "", players: 0, playerList: [], departement: "", present: false, paye: false, ajoute: false, division: "U7", connectionToken: "equipea08" },
   ],
   refereeFields: [
-    { id: "pays", label: "Pays", enabled: true },
-    { id: "lien", label: "Lien de connexion", enabled: true },
-    { id: "divisions", label: "Divisions", enabled: true },
+    { id: "present", label: "Présent", standard: true, enabled: true },
+    { id: "disponible", label: "Disponible", standard: true, enabled: true },
+    { id: "email", label: "E-mail", standard: true, enabled: true },
+    { id: "telephone", label: "Téléphone", standard: true, enabled: false },
+    { id: "club", label: "Club", standard: true, enabled: true },
+    { id: "niveau", label: "Niveau", standard: true, enabled: false },
+    { id: "experience", label: "Expérience", standard: true, enabled: true, help: true },
+    { id: "pays", label: "Pays", standard: true, enabled: false },
+    { id: "lien", label: "Lien de connexion", standard: true, enabled: true, help: true },
+    { id: "divisions", label: "Division", standard: true, enabled: true },
   ],
   referees: [
-    { id: 1, name: "Jules", link: "", divisions: "" },
-    { id: 2, name: "Pierre", link: "", divisions: "" },
-    { id: 3, name: "Timéo", link: "", divisions: "" },
+    { id: 1, name: "Jules", email: "", telephone: "", club: "", niveau: "", experience: "Accompagnateur", pays: "", divisions: "U7", present: false, disponible: true, connectionToken: "arbitre01", fields: {} },
+    { id: 2, name: "Pierre", email: "", telephone: "", club: "", niveau: "", experience: "Normal", pays: "", divisions: "U11", present: false, disponible: true, connectionToken: "arbitre02", fields: {} },
+    { id: 3, name: "Timéo", email: "", telephone: "", club: "", niveau: "", experience: "Novice", pays: "", divisions: "U9", present: false, disponible: true, connectionToken: "arbitre03", fields: {} },
   ],
   admins: [],
   phases: [
