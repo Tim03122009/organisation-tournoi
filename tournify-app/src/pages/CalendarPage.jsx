@@ -16,6 +16,8 @@ export default function CalendarPage() {
     planAll,
     clearSchedule,
     assignRefereeToAll,
+    assignRefereesByExperience,
+    validateRefereeBinome,
     exportCalendar,
   } = useTournamentActions();
 
@@ -113,6 +115,14 @@ export default function CalendarPage() {
               onClick={() => navigate("/participants/referees")}
             >
               Gestion des arbitres
+            </button>
+            <button
+              type="button"
+              className="btn-outlined btn-full"
+              style={{ marginTop: 8 }}
+              onClick={assignRefereesByExperience}
+            >
+              Placer selon l&apos;expérience
             </button>
             <button
               type="button"
@@ -220,7 +230,11 @@ export default function CalendarPage() {
                       <div>{ev.duration}</div>
                     </div>
                   ) : (
-                    <div key={ev.id} className="match-card">
+                    <div
+                      key={ev.id}
+                      className={`match-card${ev.binomeStatus === "needs-validation" ? " is-binome-pending" : ""}`}
+                      data-binome-pending={ev.binomeStatus === "needs-validation" ? "true" : undefined}
+                    >
                       <div className="time">{ev.time}</div>
                       <div className="teams">
                         {ev.team1} - {ev.team2}
@@ -231,9 +245,20 @@ export default function CalendarPage() {
                           <>
                             <span className="material-icons md-18">person</span>
                             {ev.referee}
+                            {ev.referee2 ? ` + ${ev.referee2}` : ""}
                           </>
                         )}
                       </div>
+                      {ev.binomeStatus === "needs-validation" && (
+                        <button
+                          type="button"
+                          className="btn-outlined btn-full"
+                          style={{ marginTop: 8 }}
+                          onClick={() => validateRefereeBinome(terrain.id, ev.id)}
+                        >
+                          Valider le binôme
+                        </button>
+                      )}
                     </div>
                   )
                 )}

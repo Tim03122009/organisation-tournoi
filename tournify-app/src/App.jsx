@@ -23,6 +23,9 @@ import {
   PresentationPageEdit,
 } from "./pages/PresentationPage";
 import TeamPortalPage from "./pages/TeamPortalPage";
+import RefereePortalPage from "./pages/RefereePortalPage";
+import RefereeDivisionGuard from "./components/RefereeDivisionGuard";
+import RefereeBinomeGuard from "./components/RefereeBinomeGuard";
 
 function AppRoutes() {
   return (
@@ -60,11 +63,14 @@ export default function App() {
             <Routes>
               <Route path="/login" element={<LoginPage />} />
               <Route path="/equipe/:token" element={<TeamPortalPage />} />
+              <Route path="/arbitre/:token" element={<RefereePortalPage />} />
               <Route
                 path="/*"
                 element={
                   <ProtectedRoute>
                     <TournamentProvider>
+                      <RefereeDivisionGuard />
+                      <RefereeBinomeGuard />
                       <AppRoutes />
                       <AppModal />
                       <Toast />

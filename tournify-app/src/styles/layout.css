@@ -302,6 +302,10 @@
   margin: 0 0 24px;
 }
 
+.empty-state .data-table-toolbar-actions {
+  margin-left: 0;
+}
+
 .data-table-wrap {
   background: var(--bg-white);
   border: 1px solid var(--border-light);
@@ -323,6 +327,29 @@
   display: flex;
   gap: 8px;
   margin-left: auto;
+}
+
+.referees-toolbar-start {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.referees-teams-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.referees-empty-toggle {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
 }
 
 .data-table {
@@ -464,6 +491,45 @@
   font-size: 0.8125rem;
   padding: 6px 28px 6px 10px;
   cursor: pointer;
+}
+
+.table-cell-select {
+  max-width: 220px;
+  min-width: 140px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-white);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 4px 28px 4px 8px;
+  cursor: pointer;
+}
+
+.table-cell-select.is-invalid {
+  border-color: #d32f2f;
+  outline: 1px solid #d32f2f;
+}
+
+.table-cell-select.is-invalid:focus {
+  border-color: #d32f2f;
+  outline: 2px solid #d32f2f;
+}
+
+body.referee-division-lock .app-layout {
+  pointer-events: none;
+}
+
+body.referee-division-lock [data-referee-division-select] {
+  pointer-events: auto;
+}
+
+body.referee-binome-lock .app-layout {
+  pointer-events: none;
+}
+
+body.referee-binome-lock [data-binome-pending] {
+  pointer-events: auto;
 }
 
 .teams-selection-banner .teams-filter-select {

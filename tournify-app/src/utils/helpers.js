@@ -92,6 +92,30 @@ export function parseCsv(text) {
 
 export const DIVISION_COLORS = ["#e53935", "#fb8c00", "#1e88e5", "#43a047", "#ec407a", "#8e24aa", "#00acc1"];
 
+export const REFEREE_ALL_DIVISIONS = "Toutes les divisions";
+export const REFEREE_OTHER_CLUB = "Autre club";
+
+export function refereeHasDivision(ref) {
+  return String(ref?.divisions ?? "").trim() !== "";
+}
+
+export function findRefereeMissingDivision(referees) {
+  return (referees || []).find((ref) => !refereeHasDivision(ref)) || null;
+}
+
+export function refereeCoversDivision(divisions, divisionName) {
+  if (!divisionName || divisionName === "all") return true;
+  const raw = String(divisions ?? "").trim();
+  if (!raw) return false;
+  if (raw === REFEREE_ALL_DIVISIONS || raw.toLowerCase() === "all") return true;
+  return raw.toLowerCase() === String(divisionName).toLowerCase();
+}
+
+/** « Autre club » = aucune appartenance aux clubs du tournoi, donc pas de conflit d'arbitrage. */
+export function refereeHasNoClubConstraint(club) {
+  return String(club ?? "").trim() === REFEREE_OTHER_CLUB;
+}
+
 export function generateAdminLink() {
   return `https://gestion-tournoi.local/admin/${Math.random().toString(36).slice(2, 14)}`;
 }
@@ -100,8 +124,16 @@ export function generateTeamToken() {
   return Math.random().toString(36).slice(2, 12);
 }
 
+export function generateRefereeToken() {
+  return Math.random().toString(36).slice(2, 12);
+}
+
 export function stableTeamToken(teamId) {
   return `t${String(teamId)}`;
+}
+
+export function stableRefereeToken(refereeId) {
+  return `r${String(refereeId)}`;
 }
 
 export function getPublicAppOrigin() {
@@ -136,6 +168,37 @@ export function lookupTeamLink(token) {
   if (!token || typeof localStorage === "undefined") return null;
   try {
     const map = JSON.parse(localStorage.getItem(TEAM_LINKS_KEY) || "{}");
+    return map[token] || null;
+  } catch {
+    return null;
+  }
+}
+
+export function getRefereeConnectionPath(token) {
+  return `/arbitre/${token}`;
+}
+
+export function getRefereeConnectionUrl(token) {
+  return `${getPublicAppOrigin()}${getRefereeConnectionPath(token)}`;
+}
+
+const REFEREE_LINKS_KEY = "gestion-tournoi-referee-links";
+
+export function registerRefereeLink(token, refereeId, storageKeyName) {
+  if (!token || typeof localStorage === "undefined") return;
+  try {
+    const map = JSON.parse(localStorage.getItem(REFEREE_LINKS_KEY) || "{}");
+    map[token] = { refereeId, storageKey: storageKeyName || null, updatedAt: Date.now() };
+    localStorage.setItem(REFEREE_LINKS_KEY, JSON.stringify(map));
+  } catch {
+    // ignore
+  }
+}
+
+export function lookupRefereeLink(token) {
+  if (!token || typeof localStorage === "undefined") return null;
+  try {
+    const map = JSON.parse(localStorage.getItem(REFEREE_LINKS_KEY) || "{}");
     return map[token] || null;
   } catch {
     return null;

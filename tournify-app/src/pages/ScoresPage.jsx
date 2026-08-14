@@ -100,7 +100,7 @@ export default function ScoresPage() {
                       <span style={{ color: "var(--text-secondary)", fontSize: "0.75rem" }}>
                         {match.poule} - {match.division}
                       </span>
-                      <span>{match.referee}</span>
+                      <span>{match.referee}{match.referee2 ? ` + ${match.referee2}` : ""}</span>
                     </div>
                   ))}
                 </div>
