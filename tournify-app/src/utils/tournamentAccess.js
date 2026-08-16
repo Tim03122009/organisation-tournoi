@@ -35,8 +35,10 @@ export function isTournamentOwner(tournament, userId) {
   return coOwners.includes(userId);
 }
 
-export async function writeAdminAccess({ tournamentId, ownerUid, uid, email }) {
-  if (!isFirebaseConfigured || !db || !uid || !tournamentId || !ownerUid) return;
+export async function writeAdminAccess({ tournamentId, ownerUid, uid, email, role = "admin" }) {
+  if (!isFirebaseConfigured || !db || !uid || !tournamentId || !ownerUid) {
+    throw new Error("Partage incomplet : identifiant manquant");
+  }
   await setDoc(accessDocRef(uid, tournamentId), {
     tournamentId,
     ownerUid,

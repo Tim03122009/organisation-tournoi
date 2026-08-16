@@ -819,10 +819,11 @@
   white-space: nowrap;
 }
 
-.admins-name-col {
-  display: flex;
+.admins-name-cell {
+  display: inline-flex;
   align-items: center;
   gap: 8px;
+  vertical-align: middle;
 }
 
 .admin-role-badge {

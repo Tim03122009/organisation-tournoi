@@ -19,7 +19,6 @@ import {
   syncAdminAccessDocs,
   writeAdminAccess,
 } from "../utils/tournamentAccess";
-import { ALL_RIGHT_IDS } from "../utils/adminRights";
 
 const STORAGE_KEY = "gestion-tournoi-data";
 
@@ -327,16 +326,20 @@ async function loadSharedTournaments(userId) {
   await Promise.all(
     accessList.map(async (access) => {
       if (!access.ownerUid || access.ownerUid === userId || !access.tournamentId) return;
-      const snap = await getDoc(tournamentDocRef(access.ownerUid, access.tournamentId));
-      if (!snap.exists()) return;
-      const merged = mergeWithDefaults({ ...snap.data(), id: snap.id });
-      if (!merged.hasTournament) return;
-      shared[snap.id] = {
-        ...merged,
-        id: snap.id,
-        ownerUid: merged.ownerUid || access.ownerUid,
-        ownerEmail: merged.ownerEmail || access.email || "",
-      };
+      try {
+        const snap = await getDoc(tournamentDocRef(access.ownerUid, access.tournamentId));
+        if (!snap.exists()) return;
+        const merged = mergeWithDefaults({ ...snap.data(), id: snap.id });
+        if (!merged.hasTournament) return;
+        shared[snap.id] = {
+          ...merged,
+          id: snap.id,
+          ownerUid: merged.ownerUid || access.ownerUid,
+          ownerEmail: merged.ownerEmail || "",
+        };
+      } catch (err) {
+        console.warn("Lecture d'un tournoi partagé impossible:", err);
+      }
     })
   );
   return { accessList, shared };
@@ -716,7 +719,7 @@ export function TournamentProvider({ children }) {
     }
   };
 
-  const addTournamentAdmin = ({ email, uid, rights }) => {
+  const addTournamentAdmin = async ({ email, uid, rights }) => {
     const id = store.currentId;
     const current = id ? store.tournaments[id] : null;
     if (!current || !uid || !isTournamentOwner(current, userId)) return false;
@@ -736,17 +739,19 @@ export function TournamentProvider({ children }) {
       ...prev,
       tournaments: { ...prev.tournaments, [id]: next },
     }));
-    persistNow(next)
-      .then(() =>
-        writeAdminAccess({
-          tournamentId: id,
-          ownerUid: current.ownerUid || userId,
-          uid,
-          email: normalized,
-        })
-      )
-      .catch((err) => console.warn("Partage administrateur impossible:", err));
-    return true;
+    try {
+      await persistNow(next);
+      await writeAdminAccess({
+        tournamentId: id,
+        ownerUid: current.ownerUid || userId,
+        uid,
+        email: normalized,
+      });
+      return true;
+    } catch (err) {
+      console.warn("Partage administrateur impossible:", err);
+      throw err;
+    }
   };
 
   const updateTournamentAdmin = (adminId, { email, rights }) => {
@@ -819,6 +824,19 @@ export function TournamentProvider({ children }) {
     persistNow(next).catch((err) => console.warn("Changement de rôle impossible:", err));
   };
 
+  const repairAdminShares = async () => {
+    const id = store.currentId;
+    const current = id ? store.tournaments[id] : null;
+    if (!current || !isTournamentOwner(current, userId)) return;
+    const next = { ...current, id, ...adminIndexFields(current.admins) };
+    try {
+      await persistNow(next);
+      await syncAdminAccessDocs(next, []);
+    } catch (err) {
+      console.warn("Réparation des partages impossible:", err);
+    }
+  };
+
   return (
     <TournamentContext.Provider
       value={{
@@ -839,6 +857,7 @@ export function TournamentProvider({ children }) {
         updateTournamentAdmin,
         removeTournamentAdmins,
         setAdminsOwnerRole,
+        repairAdminShares,
       }}
     >
       {children}

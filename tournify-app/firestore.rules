@@ -11,9 +11,15 @@ service cloud.firestore {
     }
 
     function isListedAdmin() {
-      return isSignedIn() && (
-        request.auth.uid in resource.data.adminUids
-      );
+      return isSignedIn() && resource.data.keys().hasAll(['adminUids'])
+        && request.auth.uid in resource.data.adminUids;
+    }
+
+    function hasAccessDoc(ownerId, tournamentId) {
+      let accessPath = /databases/$(database)/documents/tournamentAccess/$(request.auth.uid + '__' + tournamentId);
+      return isSignedIn()
+        && exists(accessPath)
+        && get(accessPath).data.ownerUid == ownerId;
     }
 
     match /userDirectory/{email} {
@@ -29,7 +35,8 @@ service cloud.firestore {
       );
       allow create: if isSignedIn()
         && request.resource.data.ownerUid == request.auth.uid
-        && request.resource.data.role == "admin";
+        && request.resource.data.uid is string
+        && request.resource.data.tournamentId is string;
       allow update: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
       allow delete: if isSignedIn() && (
         resource.data.uid == request.auth.uid ||
@@ -38,9 +45,9 @@ service cloud.firestore {
     }
 
     match /users/{userId}/tournaments/{tournamentId} {
-      allow read: if isOwnerPath(userId) || isListedAdmin();
+      allow read: if isOwnerPath(userId) || isListedAdmin() || hasAccessDoc(userId, tournamentId);
       allow create: if isOwnerPath(userId);
-      allow update: if (isOwnerPath(userId) || isListedAdmin())
+      allow update: if (isOwnerPath(userId) || isListedAdmin() || hasAccessDoc(userId, tournamentId))
         && request.resource.data.ownerUid == resource.data.ownerUid;
       allow delete: if isOwnerPath(userId);
     }

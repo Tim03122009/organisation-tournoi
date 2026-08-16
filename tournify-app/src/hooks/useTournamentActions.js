@@ -18,7 +18,7 @@ import { assignRefereesPreferringTerrain, normalizeRefereeExperience } from "../
 import { lookupUserRecord } from "../utils/userLookup";
 
 export function useTournamentActions() {
-  const { data, setData, update, isOwner, isCreator, can, addTournamentAdmin, updateTournamentAdmin, removeTournamentAdmins, setAdminsOwnerRole } = useTournament();
+  const { data, setData, update, isOwner, isCreator, can, addTournamentAdmin, updateTournamentAdmin, removeTournamentAdmins, setAdminsOwnerRole, repairAdminShares } = useTournament();
   const { showToast, openPrompt, openConfirm, openAlert, openDayEditor, openLocationEditor, openDivisionEditor, openInfoFieldEditor, openChoiceList, openTeamEditor, openRefereeEditor, openPlayersEditor } = useAppUI();
 
   const patch = useCallback(
@@ -1299,10 +1299,16 @@ export function useTournamentActions() {
       showToast("Impossible de partager avec ce compte pour le moment. Demandez-lui de se reconnecter.");
       return false;
     }
-    const added = addTournamentAdmin({ email: record.email, uid: record.uid, rights });
-    if (added) showToast("Administrateur ajouté");
-    else showToast("Cet administrateur est déjà ajouté");
-    return added;
+    try {
+      const added = await addTournamentAdmin({ email: record.email, uid: record.uid, rights });
+      if (added) showToast("Administrateur ajouté. Ton ami doit actualiser sa page Tournois.");
+      else showToast("Cet administrateur est déjà ajouté");
+      return added;
+    } catch (err) {
+      console.warn(err);
+      showToast("Le partage n'a pas pu être enregistré. Réessaie dans un instant.");
+      return false;
+    }
   };
 
   const updateAdmin = (id, { email, rights }) => {
@@ -1967,6 +1973,7 @@ export function useTournamentActions() {
     deleteSelectedAdmins,
     promoteSelectedAdmins,
     demoteSelectedAdmins,
+    repairAdminShares,
     setStructureDivision,
     addPhase,
     editPhase,

@@ -84,7 +84,7 @@ function RightStatusIcon({ granted }) {
 }
 
 export default function AdminsPage() {
-  const { data, isOwner, addAdmin, updateAdmin, deleteSelectedAdmins, promoteSelectedAdmins, demoteSelectedAdmins } = useTournamentActions();
+  const { data, isOwner, addAdmin, updateAdmin, deleteSelectedAdmins, promoteSelectedAdmins, demoteSelectedAdmins, repairAdminShares } = useTournamentActions();
   const [showModal, setShowModal] = useState(false);
   const [editingAdmin, setEditingAdmin] = useState(null);
   const [selected, setSelected] = useState([]);
@@ -92,6 +92,12 @@ export default function AdminsPage() {
 
   const admins = data.admins || [];
   const hasAdmins = admins.length > 0;
+
+  useEffect(() => {
+    if (!isOwner || !hasAdmins) return undefined;
+    repairAdminShares?.();
+    return undefined;
+  }, [isOwner, hasAdmins, data.id]);
 
   const sortedAdmins = useMemo(() => {
     const copy = [...admins];
@@ -281,10 +287,12 @@ export default function AdminsPage() {
                         ) : null}
                       </td>
                       <td className="admins-name-col">
-                        <span>{admin.email}</span>
-                        {admin.role === "owner" ? (
-                          <span className="admin-role-badge">Propriétaire</span>
-                        ) : null}
+                        <span className="admins-name-cell">
+                          <span>{admin.email}</span>
+                          {admin.role === "owner" ? (
+                            <span className="admin-role-badge">Propriétaire</span>
+                          ) : null}
+                        </span>
                       </td>
                       {ADMIN_TABLE_COLUMNS.map((column) => (
                         <td key={column.id} className="admin-right-col">
