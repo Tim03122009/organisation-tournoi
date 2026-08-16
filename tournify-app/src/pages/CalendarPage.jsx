@@ -2,11 +2,13 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTournamentActions } from "../hooks/useTournamentActions";
 import { AppLayout } from "../components/Layout";
+import RightsLock from "../components/RightsLock";
 
 export default function CalendarPage() {
   const navigate = useNavigate();
   const {
     data,
+    can,
     update,
     setMatchDuration,
     toggleCalendarLock,
@@ -31,8 +33,10 @@ export default function CalendarPage() {
     return true;
   });
 
+  const calendarLocked = !can("calendar");
+
   const rightPanel = (
-    <aside className="right-panel">
+    <aside className={`right-panel${calendarLocked ? " rights-locked" : ""}`} inert={calendarLocked || undefined}>
       <div className="right-panel-tabs">
         <button
           type="button"
@@ -194,6 +198,7 @@ export default function CalendarPage() {
 
   return (
     <AppLayout title="Gestion tournoi" rightPanel={rightPanel}>
+      <RightsLock right="calendar">
       <div className="calendar-page">
         <div className="sub-toolbar">
           <button type="button" className="btn-outlined" onClick={setMatchDuration}>
@@ -291,6 +296,7 @@ export default function CalendarPage() {
           </div>
         </div>
       </div>
+      </RightsLock>
     </AppLayout>
   );
 }

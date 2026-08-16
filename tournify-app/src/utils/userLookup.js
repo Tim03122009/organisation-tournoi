@@ -59,15 +59,34 @@ export async function ensureUserDirectoryEntry(user) {
 }
 
 async function lookupUserInFirestore(email) {
-  if (!isFirebaseConfigured || !db) return false;
+  if (!isFirebaseConfigured || !db) return null;
 
   try {
     const snap = await getDoc(doc(db, "userDirectory", email));
-    return snap.exists();
+    if (!snap.exists()) return null;
+    const data = snap.data() || {};
+    return { email, uid: data.uid || "" };
   } catch (err) {
     console.warn("Lecture Firestore userDirectory impossible:", err);
-    return false;
+    return null;
   }
+}
+
+export async function lookupUserRecord(email) {
+  const normalized = normalizeEmail(email);
+  if (!normalized) return null;
+
+  const fromDirectory = await lookupUserInFirestore(normalized);
+  if (fromDirectory?.uid) {
+    addToLocalUserDirectory(normalized);
+    return fromDirectory;
+  }
+
+  if (fromDirectory) {
+    addToLocalUserDirectory(normalized);
+  }
+
+  return fromDirectory;
 }
 
 async function lookupUserInFirebaseAuth(email) {
@@ -101,7 +120,8 @@ export async function lookupUserByEmail(email) {
     return true;
   }
 
-  if (await lookupUserInFirestore(normalized)) {
+  const record = await lookupUserInFirestore(normalized);
+  if (record) {
     addToLocalUserDirectory(normalized);
     return true;
   }
@@ -124,8 +144,8 @@ export async function validateAdminEmail(email, currentUserEmail, { skipLookup =
     return { status: "valid" };
   }
 
-  const exists = await lookupUserByEmail(normalized);
-  if (!exists) {
+  const record = await lookupUserRecord(normalized);
+  if (!record?.uid) {
     return {
       status: "not_found",
       message: "Aucun utilisateur trouvé pour cette adresse e-mail",

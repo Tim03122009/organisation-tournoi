@@ -1,20 +1,34 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import {
+  GoogleAuthProvider,
   createUserWithEmailAndPassword,
+  getRedirectResult,
   onAuthStateChanged,
   signInWithEmailAndPassword,
+  signInWithPopup,
+  signInWithRedirect,
   signOut,
 } from "firebase/auth";
 import { auth, isFirebaseConfigured } from "../firebase";
-import { ensureUserDirectoryEntry, registerCurrentUserEmail } from "../utils/userLookup";
+import { ensureUserDirectoryEntry, normalizeEmail, registerCurrentUserEmail } from "../utils/userLookup";
 
 const AuthContext = createContext(null);
 
-const LOCAL_DEMO_USER = {
-  uid: "local-demo",
-  email: "demo@local",
-  isDemo: true,
-};
+const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: "select_account" });
+
+function notConfiguredError() {
+  const err = new Error("Firebase n'est pas configuré.");
+  err.code = "auth/not-configured";
+  return err;
+}
+
+async function afterSignIn(user) {
+  if (user?.email) {
+    registerCurrentUserEmail(user.email);
+  }
+  await ensureUserDirectoryEntry(user).catch(() => {});
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -22,10 +36,18 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (!isFirebaseConfigured || !auth) {
-      setUser(LOCAL_DEMO_USER);
+      setUser(null);
       setLoading(false);
       return undefined;
     }
+
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result?.user) afterSignIn(result.user).catch(() => {});
+      })
+      .catch((err) => {
+        console.warn("Retour connexion Google:", err);
+      });
 
     return onAuthStateChanged(auth, (nextUser) => {
       if (nextUser?.email) {
@@ -41,27 +63,42 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     if (!isFirebaseConfigured || !auth) {
-      setUser(LOCAL_DEMO_USER);
-      return { user: LOCAL_DEMO_USER };
+      throw notConfiguredError();
     }
-    const result = await signInWithEmailAndPassword(auth, email, password);
-    await ensureUserDirectoryEntry(result.user).catch(() => {});
+    const result = await signInWithEmailAndPassword(auth, normalizeEmail(email), password);
+    await afterSignIn(result.user);
     return result;
   };
 
   const signup = async (email, password) => {
     if (!isFirebaseConfigured || !auth) {
-      setUser(LOCAL_DEMO_USER);
-      return { user: LOCAL_DEMO_USER };
+      throw notConfiguredError();
     }
-    const result = await createUserWithEmailAndPassword(auth, email, password);
-    await ensureUserDirectoryEntry(result.user).catch(() => {});
+    const result = await createUserWithEmailAndPassword(auth, normalizeEmail(email), password);
+    await afterSignIn(result.user);
     return result;
+  };
+
+  const loginWithGoogle = async () => {
+    if (!isFirebaseConfigured || !auth) {
+      throw notConfiguredError();
+    }
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      await afterSignIn(result.user);
+      return result;
+    } catch (err) {
+      if (err?.code === "auth/popup-blocked") {
+        await signInWithRedirect(auth, googleProvider);
+        return null;
+      }
+      throw err;
+    }
   };
 
   const logout = () => {
     if (!isFirebaseConfigured || !auth) {
-      setUser(LOCAL_DEMO_USER);
+      setUser(null);
       return Promise.resolve();
     }
     return signOut(auth);
@@ -69,7 +106,15 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, signup, logout, isFirebaseConfigured }}
+      value={{
+        user,
+        loading,
+        login,
+        signup,
+        loginWithGoogle,
+        logout,
+        isFirebaseConfigured,
+      }}
     >
       {children}
     </AuthContext.Provider>

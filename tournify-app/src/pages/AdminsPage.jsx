@@ -84,7 +84,7 @@ function RightStatusIcon({ granted }) {
 }
 
 export default function AdminsPage() {
-  const { data, addAdmin, updateAdmin, deleteSelectedAdmins } = useTournamentActions();
+  const { data, isOwner, addAdmin, updateAdmin, deleteSelectedAdmins, promoteSelectedAdmins, demoteSelectedAdmins } = useTournamentActions();
   const [showModal, setShowModal] = useState(false);
   const [editingAdmin, setEditingAdmin] = useState(null);
   const [selected, setSelected] = useState([]);
@@ -103,6 +103,9 @@ export default function AdminsPage() {
   }, [admins, sortAsc]);
 
   const allSelected = hasAdmins && selected.length === admins.length;
+  const selectedAdmins = admins.filter((admin) => selected.includes(admin.id));
+  const canPromote = selectedAdmins.some((admin) => admin.role !== "owner");
+  const canDemote = selectedAdmins.some((admin) => admin.role === "owner");
 
   const toggleSelectAll = () => {
     setSelected(allSelected ? [] : admins.map((admin) => admin.id));
@@ -129,14 +132,28 @@ export default function AdminsPage() {
     setEditingAdmin(null);
   };
 
-  const handleSave = ({ email, rights }) => {
+  const handleSave = async ({ email, rights }) => {
+    if (!isOwner) return;
     if (editingAdmin) {
       updateAdmin(editingAdmin.id, { email, rights });
-    } else {
-      addAdmin(email, rights);
+      closeModal();
+      return;
     }
-    closeModal();
+    const added = await addAdmin(email, rights);
+    if (added) closeModal();
   };
+
+  if (!isOwner) {
+    return (
+      <div className="page-container">
+        <div className="empty-state page-blocked">
+          <span className="material-icons page-blocked-icon">lock</span>
+          <h2>Page bloquée</h2>
+          <p>Cette page est bloquée car vous n&apos;êtes pas propriétaire du tournoi.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={hasAdmins ? "page-container-wide" : "page-container"}>
@@ -161,6 +178,36 @@ export default function AdminsPage() {
                 {selected.length} sélectionné{selected.length > 1 ? "s" : ""}
               </span>
               <div className="teams-selection-actions">
+                {canPromote ? (
+                  <button
+                    type="button"
+                    className="teams-selection-btn"
+                    onClick={() =>
+                      promoteSelectedAdmins(
+                        selectedAdmins.filter((admin) => admin.role !== "owner").map((admin) => admin.id),
+                        clearSelection
+                      )
+                    }
+                  >
+                    Passer en propriétaire
+                    <span className="material-icons md-18">vpn_key</span>
+                  </button>
+                ) : null}
+                {canDemote ? (
+                  <button
+                    type="button"
+                    className="teams-selection-btn"
+                    onClick={() =>
+                      demoteSelectedAdmins(
+                        selectedAdmins.filter((admin) => admin.role === "owner").map((admin) => admin.id),
+                        clearSelection
+                      )
+                    }
+                  >
+                    Passer en administrateur
+                    <span className="material-icons md-18">person</span>
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="teams-selection-btn"
@@ -187,13 +234,15 @@ export default function AdminsPage() {
               <thead>
                 <tr>
                   <th style={{ width: 40 }}>
-                    <input
-                      type="checkbox"
-                      className="mui-checkbox"
-                      checked={allSelected}
-                      onChange={toggleSelectAll}
-                      aria-label="Tout sélectionner"
-                    />
+                    {isOwner ? (
+                      <input
+                        type="checkbox"
+                        className="mui-checkbox"
+                        checked={allSelected}
+                        onChange={toggleSelectAll}
+                        aria-label="Tout sélectionner"
+                      />
+                    ) : null}
                   </th>
                   <th className="admins-name-col">
                     <button
@@ -221,29 +270,38 @@ export default function AdminsPage() {
                   return (
                     <tr key={admin.id} className={isSelected ? "is-selected" : ""}>
                       <td>
-                        <input
-                          type="checkbox"
-                          className="mui-checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleSelect(admin.id)}
-                          aria-label={`Sélectionner ${admin.email}`}
-                        />
+                        {isOwner ? (
+                          <input
+                            type="checkbox"
+                            className="mui-checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelect(admin.id)}
+                            aria-label={`Sélectionner ${admin.email}`}
+                          />
+                        ) : null}
                       </td>
-                      <td className="admins-name-col">{admin.email}</td>
+                      <td className="admins-name-col">
+                        <span>{admin.email}</span>
+                        {admin.role === "owner" ? (
+                          <span className="admin-role-badge">Propriétaire</span>
+                        ) : null}
+                      </td>
                       {ADMIN_TABLE_COLUMNS.map((column) => (
                         <td key={column.id} className="admin-right-col">
                           <RightStatusIcon granted={hasRight(admin.rights, column.id)} />
                         </td>
                       ))}
                       <td>
-                        <button
-                          type="button"
-                          className="list-row-edit"
-                          onClick={() => openEditModal(admin)}
-                          aria-label={`Modifier ${admin.email}`}
-                        >
-                          <span className="material-icons md-20">edit</span>
-                        </button>
+                        {isOwner ? (
+                          <button
+                            type="button"
+                            className="list-row-edit"
+                            onClick={() => openEditModal(admin)}
+                            aria-label={`Modifier ${admin.email}`}
+                          >
+                            <span className="material-icons md-20">edit</span>
+                          </button>
+                        ) : null}
                       </td>
                     </tr>
                   );

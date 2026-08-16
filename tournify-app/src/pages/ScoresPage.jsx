@@ -1,9 +1,31 @@
 import { useState } from "react";
 import { useTournamentActions } from "../hooks/useTournamentActions";
 import { AppLayout } from "../components/Layout";
+import RightsLock from "../components/RightsLock";
+
+function progressPhasesFrom(data) {
+  const structure = data.phases || [];
+  const scores = data.scores?.phases || [];
+  if (structure.length) {
+    return structure.map((phase, index) => ({
+      id: phase.id,
+      name: phase.name,
+      done: scores[index]?.done ?? 0,
+      total: scores[index]?.total ?? 0,
+      started: Boolean(phase.started) || index === 0,
+    }));
+  }
+  return scores.map((phase, index) => ({
+    id: phase.id ?? `score-phase-${index}`,
+    name: phase.name,
+    done: phase.done ?? 0,
+    total: phase.total ?? 0,
+    started: Boolean(phase.started) || index === 0,
+  }));
+}
 
 export default function ScoresPage() {
-  const { data, updateScore, exportScores, showStandings, openPrompt, showToast } =
+  const { data, can, updateScore, exportScores, showStandings, startTournamentPhase, openPrompt, showToast } =
     useTournamentActions();
 
   const [expanded, setExpanded] = useState(() =>
@@ -34,27 +56,47 @@ export default function ScoresPage() {
     });
   };
 
+  const progressPhases = progressPhasesFrom(data);
+  const canStartPhases = can("scores_phases");
+
   return (
     <AppLayout title="Gestion tournoi">
+      <RightsLock right="scores">
       <div className="page-container-wide">
         <h2 className="section-title">Progrès</h2>
         <div className="progress-cards">
-          {data.scores.phases.map((phase, i) => (
-            <div
-              key={phase.name + i}
-              className={`progress-card${i === 1 ? " red" : i === 2 ? " gray" : ""}`}
-            >
-              <h4>{phase.name}</h4>
-              <div className="count">
-                {phase.done}/{phase.total}
+          {progressPhases.map((phase, i) => {
+            const previous = progressPhases[i - 1];
+            const previousReady = i === 0 || Boolean(previous?.started);
+            const showStart = !phase.started && previousReady;
+            return (
+              <div
+                key={phase.id}
+                className={`progress-card${phase.started ? "" : " gray"}`}
+              >
+                <h4>{phase.name}</h4>
+                <div className="count">
+                  {phase.done}/{phase.total}
+                </div>
+                {phase.started ? (
+                  <p className="section-desc" style={{ marginTop: 8 }}>En cours</p>
+                ) : null}
+                {showStart ? (
+                  <RightsLock right="scores_phases">
+                    <button
+                      type="button"
+                      className="btn-contained"
+                      style={{ marginTop: 12 }}
+                      disabled={!canStartPhases}
+                      onClick={() => startTournamentPhase(phase.id)}
+                    >
+                      Démarrer
+                    </button>
+                  </RightsLock>
+                ) : null}
               </div>
-              {i === 0 && phase.done === phase.total && phase.total > 0 && (
-                <button type="button" className="btn-contained" style={{ marginTop: 12 }} onClick={showStandings}>
-                  Retour vers
-                </button>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="scores-section-header">
@@ -109,6 +151,7 @@ export default function ScoresPage() {
           ))}
         </div>
       </div>
+      </RightsLock>
     </AppLayout>
   );
 }

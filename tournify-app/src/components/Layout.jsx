@@ -1,21 +1,22 @@
 import { useEffect, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useTournament } from "../context/TournamentContext";
 import { useTournamentActions } from "../hooks/useTournamentActions";
 
 const NAV_ITEMS = [
-  { to: "/general", icon: "settings", label: "Général", prefix: "/general" },
-  { to: "/participants/teams", icon: "people", label: "Participants", prefix: "/participants" },
-  { to: "/structure", icon: "emoji_events", label: "Classement", prefix: "/structure" },
-  { to: "/calendar", icon: "event", label: "Calendrier", prefix: "/calendar" },
-  { to: "/presentation", icon: "desktop_windows", label: "Présentation", prefix: "/presentation" },
-  { to: "/scores", icon: "assessment", label: "Scores", prefix: "/scores" },
+  { to: "/general", icon: "settings", label: "Général", prefix: "/general", right: "general" },
+  { to: "/participants/teams", icon: "people", label: "Participants", prefix: "/participants", right: "participants" },
+  { to: "/structure", icon: "emoji_events", label: "Classement", prefix: "/structure", right: "layout" },
+  { to: "/calendar", icon: "event", label: "Calendrier", prefix: "/calendar", right: "calendar" },
+  { to: "/presentation", icon: "desktop_windows", label: "Présentation", prefix: "/presentation", right: "presentation" },
+  { to: "/scores", icon: "assessment", label: "Scores", prefix: "/scores", right: "scores" },
 ];
 
 export default function TopBar({ title, navOpen, onToggleNav }) {
   const navigate = useNavigate();
   const { logout } = useAuth();
-  const { openPresentationMode, showSupport } = useTournamentActions();
+  const { can, openPresentationMode, showSupport } = useTournamentActions();
 
   return (
     <header className="topbar">
@@ -41,7 +42,13 @@ export default function TopBar({ title, navOpen, onToggleNav }) {
         <span>{title}</span>
       </div>
       <div className="topbar-right">
-        <button type="button" className="topbar-action" onClick={openPresentationMode}>
+        <button
+          type="button"
+          className="topbar-action"
+          onClick={openPresentationMode}
+          disabled={!can("presentation")}
+          title={can("presentation") ? "Présentation" : "Droit de présentation requis"}
+        >
           <span className="material-icons">desktop_windows</span>
           <span className="topbar-action-label">Présentation</span>
         </button>
@@ -78,6 +85,7 @@ export function Sidebar({ open, onClose }) {
   const location = useLocation();
   const navigate = useNavigate();
   const isMobile = useIsMobileNav();
+  const { can } = useTournament();
   const drawerHidden = isMobile && !open;
 
   return (
@@ -106,13 +114,15 @@ export function Sidebar({ open, onClose }) {
         </button>
         {NAV_ITEMS.map((item) => {
           const active = location.pathname.startsWith(item.prefix);
+          const locked = !can(item.right);
           return (
             <NavLink
               key={item.to}
               to={item.to}
-              className={`sidebar-item${active ? " active" : ""}`}
+              className={`sidebar-item${active ? " active" : ""}${locked ? " is-locked" : ""}`}
               tabIndex={drawerHidden ? -1 : undefined}
               onClick={onClose}
+              title={locked ? "Consultation uniquement : droit non accordé" : item.label}
             >
               <span className="material-icons">{item.icon}</span>
               <span>{item.label}</span>

@@ -138,6 +138,35 @@
   color: var(--primary);
 }
 
+.sidebar-item.is-locked {
+  opacity: 0.38;
+  filter: grayscale(0.7);
+}
+
+.sidebar-item.is-locked:hover,
+.sidebar-item.is-locked.active {
+  color: var(--text-secondary);
+  opacity: 0.5;
+}
+
+.page-tab.is-locked {
+  opacity: 0.45;
+  filter: grayscale(0.5);
+}
+
+.rights-locked {
+  opacity: 0.5;
+  filter: grayscale(0.45);
+  pointer-events: none;
+  user-select: none;
+  cursor: not-allowed;
+}
+
+.topbar-action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .sidebar-item.active::before {
   content: "";
   position: absolute;
@@ -337,6 +366,17 @@ button.empty-state-link:hover {
   font-size: 0.875rem;
   line-height: 1.5;
   margin: 0 0 24px;
+}
+
+.page-blocked {
+  opacity: 0.72;
+  filter: grayscale(0.35);
+}
+
+.page-blocked-icon {
+  font-size: 64px;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
 }
 
 .empty-state .data-table-toolbar-actions {

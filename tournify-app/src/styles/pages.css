@@ -813,10 +813,27 @@
 
 .admins-table .admins-name-col {
   min-width: 200px;
-  max-width: 280px;
+  max-width: 320px;
   padding-left: 8px;
   padding-right: 16px;
   white-space: nowrap;
+}
+
+.admins-name-col {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-role-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #5b2cff;
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 600;
 }
 
 .admins-table thead .admins-name-col {
@@ -1593,23 +1610,79 @@ textarea.mui-input {
   gap: 12px;
 }
 
+.tournois-section {
+  margin-bottom: 28px;
+}
+
+.tournois-section-title {
+  margin: 0 0 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.tournois-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 64px 16px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.tournois-empty .material-icons {
+  font-size: 48px;
+  color: var(--primary);
+  opacity: 0.7;
+}
+
+.tournois-empty p {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
 .tournoi-card {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 14px 12px 14px 14px;
+  padding: 6px 6px 6px 8px;
   border: 1px solid var(--border-light);
   border-radius: 8px;
   background: var(--bg-white);
   box-shadow: var(--shadow-card);
-  cursor: pointer;
-  text-align: left;
   color: inherit;
 }
 
 .tournoi-card:hover {
   background: rgba(0, 0, 0, 0.02);
+}
+
+.tournoi-card--shared {
+  background: #f3fbf9;
+  border-color: #9ad8ce;
+}
+
+.tournoi-card--shared:hover {
+  background: #eaf7f4;
+}
+
+.tournoi-card-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 8px 8px 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
 }
 
 .tournoi-card-icon {
@@ -1626,6 +1699,11 @@ textarea.mui-input {
 
 .tournoi-card-icon .material-icons {
   font-size: 28px;
+}
+
+.tournoi-card-icon--shared {
+  background: linear-gradient(135deg, #00897b 0%, #26c6da 100%);
+  color: #fff8e1;
 }
 
 .tournoi-card-body {
@@ -1646,10 +1724,73 @@ textarea.mui-input {
   color: var(--text-secondary);
 }
 
-.tournoi-card-menu {
-  color: var(--text-secondary);
+.tournoi-card-badge {
   display: inline-flex;
-  padding: 4px;
+  align-items: center;
+  margin-top: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #00897b;
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  width: fit-content;
+}
+
+.tournoi-card-menu {
+  position: relative;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.tournoi-card-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.tournoi-card-menu-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.tournoi-card-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 20;
+  min-width: 280px;
+  padding: 8px 0;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+
+.tournoi-card-dropdown button {
+  display: block;
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: 0.9375rem;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.tournoi-card-dropdown button:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.tournoi-card-dropdown-danger {
+  color: #c62828 !important;
 }
 
 @media (max-width: 640px) {

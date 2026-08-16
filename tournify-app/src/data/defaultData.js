@@ -282,3 +282,54 @@ export const defaultTournament = {
     ],
   },
 };
+
+export function createAccountShell() {
+  return {
+    ...defaultTournament,
+    hasTournament: false,
+    name: "",
+    selectedDivision: "",
+    teams: [],
+    referees: [],
+    admins: [],
+    divisions: [],
+    phases: [],
+    terrains: [],
+    days: [],
+    locations: [],
+    unscheduledMatches: 0,
+    totalMatches: 0,
+    unscheduledSlots: [],
+    scores: { phases: [], matchSlots: [] },
+  };
+}
+
+export function createBlankTournament(name = "Nouveau tournoi") {
+  return {
+    ...createAccountShell(),
+    hasTournament: true,
+    name: String(name || "").trim() || "Nouveau tournoi",
+    createdAt: Date.now(),
+  };
+}
+
+export function looksLikeSeedTournament(data) {
+  if (!data || typeof data !== "object") return true;
+  if (data.hasTournament === true) return false;
+  if (data.hasTournament === false) return true;
+
+  const teamNames = (data.teams || []).map((team) => team.name);
+  const refereeNames = (data.referees || []).map((ref) => ref.name);
+  const seedTeamNames = defaultTournament.teams.map((team) => team.name);
+  const seedRefereeNames = defaultTournament.referees.map((ref) => ref.name);
+
+  const sameTeams =
+    teamNames.length === seedTeamNames.length &&
+    seedTeamNames.every((name) => teamNames.includes(name));
+  const sameReferees =
+    refereeNames.length === seedRefereeNames.length &&
+    seedRefereeNames.every((name) => refereeNames.includes(name));
+  const seedName = !data.name || data.name === defaultTournament.name;
+
+  return seedName && sameTeams && sameReferees;
+}

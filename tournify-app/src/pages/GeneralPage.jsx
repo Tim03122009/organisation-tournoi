@@ -1,5 +1,6 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { AppLayout } from "../components/Layout";
+import RightsLock from "../components/RightsLock";
 import PointCountingSection from "../components/PointCountingSection";
 import { useTournamentActions } from "../hooks/useTournamentActions";
 import "../styles/pages.css";
@@ -20,6 +21,7 @@ export default function GeneralPage() {
 
   return (
     <AppLayout title={data.name}>
+      <RightsLock right="general">
       <div className="page-container">
         <section className="form-section">
           <button type="button" className="name-field-btn" onClick={editTournamentName}>
@@ -133,25 +135,46 @@ export default function GeneralPage() {
           </p>
         )}
       </div>
+      </RightsLock>
     </AppLayout>
   );
 }
 
 export function ParticipantsLayout() {
+  const { can, isOwner } = useTournamentActions();
+  const location = useLocation();
+  const locked = !can("participants");
+  const adminsLocked = !isOwner;
+  const onAdminsPage = location.pathname.includes("/admins");
   return (
     <AppLayout title="Gestion tournoi">
       <div className="page-tabs">
-        <NavLink to="/participants/teams" className={({ isActive }) => `page-tab${isActive ? " active" : ""}`}>
+        <NavLink
+          to="/participants/teams"
+          className={({ isActive }) => `page-tab${isActive ? " active" : ""}${locked ? " is-locked" : ""}`}
+        >
           Équipes
         </NavLink>
-        <NavLink to="/participants/referees" className={({ isActive }) => `page-tab${isActive ? " active" : ""}`}>
+        <NavLink
+          to="/participants/referees"
+          className={({ isActive }) => `page-tab${isActive ? " active" : ""}${locked ? " is-locked" : ""}`}
+        >
           Arbitres
         </NavLink>
-        <NavLink to="/participants/admins" className={({ isActive }) => `page-tab${isActive ? " active" : ""}`}>
+        <NavLink
+          to="/participants/admins"
+          className={({ isActive }) => `page-tab${isActive ? " active" : ""}${adminsLocked ? " is-locked" : ""}`}
+        >
           Administrateurs
         </NavLink>
       </div>
-      <Outlet />
+      {onAdminsPage ? (
+        <Outlet />
+      ) : (
+        <RightsLock right="participants">
+          <Outlet />
+        </RightsLock>
+      )}
     </AppLayout>
   );
 }

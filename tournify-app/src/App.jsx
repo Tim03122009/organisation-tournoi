@@ -5,8 +5,10 @@ import { AppUIProvider } from "./context/AppUIContext";
 import AppModal from "./components/AppModal";
 import ErrorBoundary from "./components/ErrorBoundary";
 import ProtectedRoute from "./components/ProtectedRoute";
+import ProfileGate from "./components/ProfileGate";
 import Toast from "./components/Toast";
 import LoginPage from "./pages/LoginPage";
+import PersonalInfoPage from "./pages/PersonalInfoPage";
 import TournoisPage from "./pages/TournoisPage";
 import GeneralPage, { ParticipantsLayout } from "./pages/GeneralPage";
 import TeamsPage from "./pages/TeamsPage";
@@ -65,16 +67,26 @@ export default function App() {
               <Route path="/equipe/:token" element={<TeamPortalPage />} />
               <Route path="/arbitre/:token" element={<RefereePortalPage />} />
               <Route
+                path="/compte"
+                element={
+                  <ProtectedRoute>
+                    <PersonalInfoPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/*"
                 element={
                   <ProtectedRoute>
-                    <TournamentProvider>
-                      <RefereeDivisionGuard />
-                      <RefereeBinomeGuard />
-                      <AppRoutes />
-                      <AppModal />
-                      <Toast />
-                    </TournamentProvider>
+                    <ProfileGate>
+                      <TournamentProvider>
+                        <RefereeDivisionGuard />
+                        <RefereeBinomeGuard />
+                        <AppRoutes />
+                        <AppModal />
+                        <Toast />
+                      </TournamentProvider>
+                    </ProfileGate>
                   </ProtectedRoute>
                 }
               />

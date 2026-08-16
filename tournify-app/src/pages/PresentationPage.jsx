@@ -1,5 +1,6 @@
 import { Link, NavLink, Outlet, useParams } from "react-router-dom";
 import { AppLayout } from "../components/Layout";
+import RightsLock from "../components/RightsLock";
 import { useTournamentActions } from "../hooks/useTournamentActions";
 
 const GENERAL_SETTINGS = [
@@ -12,20 +13,39 @@ const STANDINGS_COLS = ["J", "G", "N", "P", "PTS", "+/-", "BP", "BC"];
 const STANDINGS_ROWS = ["Normal", "Mobile/diaporama"];
 
 export function PresentationLayout() {
+  const { can } = useTournamentActions();
   return (
     <AppLayout title="Gestion tournoi">
       <div className="page-tabs">
-        <NavLink to="/presentation" end className={({ isActive }) => `page-tab${isActive ? " active" : ""}`}>
+        <NavLink
+          to="/presentation"
+          end
+          className={({ isActive }) =>
+            `page-tab${isActive ? " active" : ""}${can("presentation_website") ? "" : " is-locked"}`
+          }
+        >
           Site web et application
         </NavLink>
-        <NavLink to="/presentation/slideshow" className={({ isActive }) => `page-tab${isActive ? " active" : ""}`}>
+        <NavLink
+          to="/presentation/slideshow"
+          className={({ isActive }) =>
+            `page-tab${isActive ? " active" : ""}${can("presentation_slideshow") ? "" : " is-locked"}`
+          }
+        >
           Diaporama
         </NavLink>
-        <NavLink to="/presentation/design" className={({ isActive }) => `page-tab${isActive ? " active" : ""}`}>
+        <NavLink
+          to="/presentation/design"
+          className={({ isActive }) =>
+            `page-tab${isActive ? " active" : ""}${can("presentation_design") ? "" : " is-locked"}`
+          }
+        >
           Design
         </NavLink>
       </div>
-      <Outlet />
+      <RightsLock right="presentation">
+        <Outlet />
+      </RightsLock>
     </AppLayout>
   );
 }
@@ -50,6 +70,7 @@ export function PresentationWebsitePage() {
   const gs = pres.generalSettings || {};
 
   return (
+    <RightsLock right="presentation_website">
     <div className="page-container">
       <div className="website-cards">
         <div className="website-card">
@@ -206,6 +227,7 @@ export function PresentationWebsitePage() {
         les personnes de confiance.
       </div>
     </div>
+    </RightsLock>
   );
 }
 
@@ -222,6 +244,7 @@ export function PresentationSlideshowPage() {
   const ss = data.presentation.slideshowSettings || {};
 
   return (
+    <RightsLock right="presentation_slideshow">
     <div className="page-container">
       <h2 className="section-title">Diaporama</h2>
       <p className="section-desc">Configurez les diapositives affichées sur un écran pendant le tournoi.</p>
@@ -287,6 +310,7 @@ export function PresentationSlideshowPage() {
         + Ajouter une diapositive
       </button>
     </div>
+    </RightsLock>
   );
 }
 
@@ -297,6 +321,7 @@ export function PresentationDesignPage() {
   const assets = data.presentation.designAssets || {};
 
   return (
+    <RightsLock right="presentation_design">
     <div className="page-container">
       <h2 className="section-title">Design</h2>
 
@@ -372,6 +397,7 @@ export function PresentationDesignPage() {
         Nouveau bloc de parrainage
       </button>
     </div>
+    </RightsLock>
   );
 }
 
@@ -416,6 +442,7 @@ export function PresentationPageEdit() {
   };
 
   return (
+    <RightsLock right="presentation_website">
     <div className="page-container">
       <Link to="/presentation" style={{ color: "var(--text-secondary)", fontSize: "0.8125rem" }}>
         ← RETOUR VERS
@@ -552,5 +579,6 @@ export function PresentationPageEdit() {
         </>
       )}
     </div>
+    </RightsLock>
   );
 }

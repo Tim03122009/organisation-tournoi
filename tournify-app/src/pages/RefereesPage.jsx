@@ -14,6 +14,7 @@ import {
 } from "../utils/helpers";
 import { REFEREE_EXPERIENCE_OPTIONS } from "../utils/refereeExperience";
 import { downloadConnectionQrJpeg, formatConnectionLinkLabel } from "../utils/qrCode";
+import { mapStoredTournaments } from "../utils/storedTournaments";
 import EmptyJersey from "../components/EmptyJersey";
 
 const BOOLEAN_FIELDS = new Set(["present", "disponible"]);
@@ -334,11 +335,17 @@ export default function RefereesPage() {
       rawKeys.forEach((key) => {
         try {
           const parsed = JSON.parse(localStorage.getItem(key) || "null");
-          if (!parsed?.referees) return;
-          const nextReferees = parsed.referees.map((r) =>
-            r.id === ref.id ? { ...r, connectionToken: token } : r
-          );
-          localStorage.setItem(key, JSON.stringify({ ...parsed, referees: nextReferees }));
+          if (!parsed) return;
+          const next = mapStoredTournaments(parsed, (tournament) => {
+            if (!(tournament.referees || []).some((r) => r.id === ref.id)) return tournament;
+            return {
+              ...tournament,
+              referees: tournament.referees.map((r) =>
+                r.id === ref.id ? { ...r, connectionToken: token } : r
+              ),
+            };
+          });
+          localStorage.setItem(key, JSON.stringify(next));
           registerRefereeLink(token, ref.id, key);
         } catch {
           // ignore per-key errors

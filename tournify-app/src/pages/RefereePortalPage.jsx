@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { defaultTournament } from "../data/defaultData";
 import { lookupRefereeLink } from "../utils/helpers";
+import { extractStoredTournaments, mapStoredTournaments } from "../utils/storedTournaments";
 
 const STORAGE_KEY = "gestion-tournoi-data";
 
@@ -29,18 +30,20 @@ function loadTournamentByRefereeToken(token) {
 
   for (const key of keys) {
     const parsed = readJson(key);
-    if (!parsed?.referees) continue;
-    const referee = parsed.referees.find(
-      (r) =>
-        r.connectionToken === token ||
-        (registered?.refereeId != null && r.id === registered.refereeId)
-    );
-    if (referee) {
-      return {
-        storageKey: key,
-        data: { ...defaultTournament, ...parsed },
-        referee: { ...referee, connectionToken: referee.connectionToken || token },
-      };
+    const tournaments = extractStoredTournaments(parsed);
+    for (const data of tournaments) {
+      const referee = (data.referees || []).find(
+        (r) =>
+          r.connectionToken === token ||
+          (registered?.refereeId != null && r.id === registered.refereeId)
+      );
+      if (referee) {
+        return {
+          storageKey: key,
+          data: { ...defaultTournament, ...data },
+          referee: { ...referee, connectionToken: referee.connectionToken || token },
+        };
+      }
     }
   }
 
@@ -94,11 +97,10 @@ function formatScore(match) {
   return `${match.score1} - ${match.score2}`;
 }
 
-function patchStoredScore(storageKey, slotIndex, matchIndex, score1, score2) {
-  const parsed = readJson(storageKey);
-  if (!parsed?.scores?.matchSlots?.[slotIndex]?.matches?.[matchIndex]) return null;
+function patchTournamentScores(data, slotIndex, matchIndex, score1, score2) {
+  if (!data?.scores?.matchSlots?.[slotIndex]?.matches?.[matchIndex]) return null;
 
-  const slots = parsed.scores.matchSlots.map((slot, sIndex) => {
+  const slots = data.scores.matchSlots.map((slot, sIndex) => {
     if (sIndex !== slotIndex) return slot;
     return {
       ...slot,
@@ -116,10 +118,29 @@ function patchStoredScore(storageKey, slotIndex, matchIndex, score1, score2) {
       if (item.score1 !== null && item.score2 !== null) done += 1;
     });
   });
-  const phases = [...(parsed.scores.phases || [])];
+  const phases = [...(data.scores.phases || [])];
   if (phases[0]) phases[0] = { ...phases[0], done, total: total || phases[0].total };
 
-  const next = { ...parsed, scores: { ...parsed.scores, matchSlots: slots, phases } };
+  return { ...data, scores: { ...data.scores, matchSlots: slots, phases } };
+}
+
+function patchStoredScore(storageKey, refereeToken, slotIndex, matchIndex, score1, score2) {
+  const parsed = readJson(storageKey);
+  if (!parsed) return null;
+
+  let patched = null;
+  const next = mapStoredTournaments(parsed, (tournament) => {
+    const hasReferee = (tournament.referees || []).some(
+      (ref) => ref.connectionToken === refereeToken
+    );
+    if (!hasReferee) return tournament;
+    const updated = patchTournamentScores(tournament, slotIndex, matchIndex, score1, score2);
+    if (updated) patched = updated;
+    return updated || tournament;
+  });
+
+  if (!patched) return null;
+
   try {
     localStorage.setItem(storageKey, JSON.stringify(next));
     if (storageKey !== STORAGE_KEY) {
@@ -128,7 +149,7 @@ function patchStoredScore(storageKey, slotIndex, matchIndex, score1, score2) {
   } catch {
     // ignore
   }
-  return next;
+  return patched;
 }
 
 export default function RefereePortalPage() {
@@ -170,7 +191,14 @@ export default function RefereePortalPage() {
       return;
     }
 
-    const next = patchStoredScore(storageKey, match.slotIndex, match.matchIndex, parts[0], parts[1]);
+    const next = patchStoredScore(
+      storageKey,
+      referee.connectionToken,
+      match.slotIndex,
+      match.matchIndex,
+      parts[0],
+      parts[1]
+    );
     if (!next) {
       setScoreError("Impossible d'enregistrer le score");
       return;

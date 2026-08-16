@@ -15,9 +15,10 @@ import {
   toCsv,
 } from "../utils/helpers";
 import { assignRefereesPreferringTerrain, normalizeRefereeExperience } from "../utils/refereeExperience";
+import { lookupUserRecord } from "../utils/userLookup";
 
 export function useTournamentActions() {
-  const { data, setData, update } = useTournament();
+  const { data, setData, update, isOwner, isCreator, can, addTournamentAdmin, updateTournamentAdmin, removeTournamentAdmins, setAdminsOwnerRole } = useTournament();
   const { showToast, openPrompt, openConfirm, openAlert, openDayEditor, openLocationEditor, openDivisionEditor, openInfoFieldEditor, openChoiceList, openTeamEditor, openRefereeEditor, openPlayersEditor } = useAppUI();
 
   const patch = useCallback(
@@ -1291,20 +1292,21 @@ export function useTournamentActions() {
   };
 
   // ——— Admins ———
-  const addAdmin = (email, rights) => {
-    if (!email) return;
-    patch((p) => ({
-      admins: [...p.admins, { id: nextId(p.admins), email, rights }],
-    }));
-    showToast("Administrateur ajouté");
+  const addAdmin = async (email, rights) => {
+    if (!email) return false;
+    const record = await lookupUserRecord(email);
+    if (!record?.uid) {
+      showToast("Impossible de partager avec ce compte pour le moment. Demandez-lui de se reconnecter.");
+      return false;
+    }
+    const added = addTournamentAdmin({ email: record.email, uid: record.uid, rights });
+    if (added) showToast("Administrateur ajouté");
+    else showToast("Cet administrateur est déjà ajouté");
+    return added;
   };
 
   const updateAdmin = (id, { email, rights }) => {
-    patch((p) => ({
-      admins: p.admins.map((admin) =>
-        admin.id === id ? { ...admin, email, rights } : admin
-      ),
-    }));
+    updateTournamentAdmin(id, { email, rights });
     showToast("Administrateur mis à jour");
   };
 
@@ -1313,7 +1315,7 @@ export function useTournamentActions() {
       title: "Retirer l'administrateur",
       message: "Confirmer la suppression ?",
       onConfirm: () => {
-        patch((p) => ({ admins: p.admins.filter((a) => a.id !== id) }));
+        removeTournamentAdmins([id]);
         showToast("Administrateur retiré");
       },
     });
@@ -1324,8 +1326,42 @@ export function useTournamentActions() {
       title: "Supprimer",
       message: `Supprimer ${ids.length} administrateur(s) ?`,
       onConfirm: () => {
-        patch((p) => ({ admins: p.admins.filter((a) => !ids.includes(a.id)) }));
+        removeTournamentAdmins(ids);
         showToast("Administrateur(s) supprimé(s)");
+        onDone?.();
+      },
+    });
+  };
+
+  const promoteSelectedAdmins = (ids, onDone) => {
+    if (!ids.length) return;
+    openConfirm({
+      title: "Passer en propriétaire",
+      message:
+        ids.length > 1
+          ? "Ces administrateurs auront tous les droits, y compris la page Administrateurs."
+          : "Cet administrateur aura tous les droits, y compris la page Administrateurs.",
+      confirmText: "Confirmer",
+      onConfirm: () => {
+        setAdminsOwnerRole(ids, true);
+        showToast(ids.length > 1 ? "Administrateurs passés propriétaires" : "Administrateur passé propriétaire");
+        onDone?.();
+      },
+    });
+  };
+
+  const demoteSelectedAdmins = (ids, onDone) => {
+    if (!ids.length) return;
+    openConfirm({
+      title: "Passer en administrateur",
+      message:
+        ids.length > 1
+          ? "Ces comptes redeviendront administrateurs. Le propriétaire d'origine ne peut pas être rétrogradé."
+          : "Ce compte redeviendra administrateur. Le propriétaire d'origine ne peut pas être rétrogradé.",
+      confirmText: "Confirmer",
+      onConfirm: () => {
+        setAdminsOwnerRole(ids, false);
+        showToast(ids.length > 1 ? "Comptes passés administrateurs" : "Compte passé administrateur");
         onDone?.();
       },
     });
@@ -1859,8 +1895,32 @@ export function useTournamentActions() {
       message: "Le classement est calculé à partir des scores saisis. Consultez l'onglet Classement pour la structure.",
     });
 
+  const startTournamentPhase = (phaseId) => {
+    patch((p) => {
+      const phases = (p.phases || []).map((phase) =>
+        phase.id === phaseId ? { ...phase, started: true, startedAt: Date.now() } : phase
+      );
+      const scorePhases = (p.scores.phases || []).map((phase, index) => {
+        const structure = p.phases?.[index];
+        const matches =
+          structure?.id === phaseId ||
+          phase.id === phaseId ||
+          `score-phase-${index}` === phaseId;
+        return matches ? { ...phase, started: true } : phase;
+      });
+      return {
+        phases,
+        scores: { ...p.scores, phases: scorePhases },
+      };
+    });
+    showToast("Phase démarrée");
+  };
+
   return {
     data,
+    isOwner,
+    isCreator,
+    can,
     update,
     patch,
     patchPresentation,
@@ -1905,6 +1965,8 @@ export function useTournamentActions() {
     updateAdmin,
     removeAdmin,
     deleteSelectedAdmins,
+    promoteSelectedAdmins,
+    demoteSelectedAdmins,
     setStructureDivision,
     addPhase,
     editPhase,
@@ -1947,6 +2009,7 @@ export function useTournamentActions() {
     updateScore,
     exportScores,
     showStandings,
+    startTournamentPhase,
     showToast,
     openPrompt,
     openConfirm,

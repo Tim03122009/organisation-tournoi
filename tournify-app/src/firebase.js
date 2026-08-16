@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { browserLocalPersistence, getAuth, setPersistence } from "firebase/auth";
 import { initializeFirestore, persistentLocalCache } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
@@ -26,6 +26,8 @@ let storage = null;
 if (isFirebaseConfigured) {
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
+  auth.languageCode = "fr";
+  setPersistence(auth, browserLocalPersistence).catch(() => {});
   db = initializeFirestore(app, {
     localCache: persistentLocalCache(),
   });

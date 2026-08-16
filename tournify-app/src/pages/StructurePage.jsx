@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { useTournamentActions } from "../hooks/useTournamentActions";
 import { AppLayout } from "../components/Layout";
+import RightsLock from "../components/RightsLock";
 
 export default function StructurePage() {
   const {
@@ -22,6 +23,7 @@ export default function StructurePage() {
 
   return (
     <AppLayout title="Gestion tournoi">
+      <RightsLock right="layout">
       <div className="structure-page">
         <div className="structure-toolbar">
           <select
@@ -128,6 +130,7 @@ export default function StructurePage() {
           </button>
         </div>
       </div>
+      </RightsLock>
     </AppLayout>
   );
 }

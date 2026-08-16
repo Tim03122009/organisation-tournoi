@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTournamentActions } from "../hooks/useTournamentActions";
 import { generateTeamToken, getTeamConnectionUrl, registerTeamLink, stableTeamToken } from "../utils/helpers";
+import { mapStoredTournaments } from "../utils/storedTournaments";
 import { downloadConnectionQrJpeg, formatConnectionLinkLabel } from "../utils/qrCode";
 import EmptyJersey from "../components/EmptyJersey";
 
@@ -319,11 +320,16 @@ export default function TeamsPage() {
       rawKeys.forEach((key) => {
         try {
           const parsed = JSON.parse(localStorage.getItem(key) || "null");
-          if (!parsed?.teams) return;
-          const nextTeams = parsed.teams.map((t) =>
-            t.id === team.id ? { ...t, connectionToken: token } : t
-          );
-          const next = { ...parsed, teams: nextTeams };
+          if (!parsed) return;
+          const next = mapStoredTournaments(parsed, (tournament) => {
+            if (!(tournament.teams || []).some((t) => t.id === team.id)) return tournament;
+            return {
+              ...tournament,
+              teams: tournament.teams.map((t) =>
+                t.id === team.id ? { ...t, connectionToken: token } : t
+              ),
+            };
+          });
           localStorage.setItem(key, JSON.stringify(next));
           registerTeamLink(token, team.id, key);
         } catch {

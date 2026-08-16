@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { defaultTournament } from "../data/defaultData";
 import { lookupTeamLink } from "../utils/helpers";
+import { extractStoredTournaments } from "../utils/storedTournaments";
 
 const STORAGE_KEY = "gestion-tournoi-data";
 
@@ -29,17 +30,19 @@ function loadTournamentByTeamToken(token) {
 
   for (const key of keys) {
     const parsed = readJson(key);
-    if (!parsed?.teams) continue;
-    const team = parsed.teams.find(
-      (t) =>
-        t.connectionToken === token ||
-        (registered?.teamId != null && t.id === registered.teamId)
-    );
-    if (team) {
-      return {
-        data: { ...defaultTournament, ...parsed },
-        team: { ...team, connectionToken: team.connectionToken || token },
-      };
+    const tournaments = extractStoredTournaments(parsed);
+    for (const data of tournaments) {
+      const team = (data.teams || []).find(
+        (t) =>
+          t.connectionToken === token ||
+          (registered?.teamId != null && t.id === registered.teamId)
+      );
+      if (team) {
+        return {
+          data: { ...defaultTournament, ...data },
+          team: { ...team, connectionToken: team.connectionToken || token },
+        };
+      }
     }
   }
 
