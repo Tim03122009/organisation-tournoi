@@ -1,7 +1,9 @@
 import { useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { useTournamentActions } from "../hooks/useTournamentActions";
 import { generateTeamToken, getTeamConnectionUrl, registerTeamLink, stableTeamToken } from "../utils/helpers";
 import { downloadConnectionQrJpeg, formatConnectionLinkLabel } from "../utils/qrCode";
+import EmptyJersey from "../components/EmptyJersey";
 
 const BOOLEAN_FIELDS = new Set(["present", "paye", "ajoute"]);
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -83,6 +85,7 @@ export default function TeamsPage() {
     editPlayerField,
     deletePlayerField,
     toggleInscriptionQuestion,
+    switchToIndividualSport,
     addTeam,
     editTeam,
     openTeamPlayers,
@@ -834,6 +837,36 @@ export default function TeamsPage() {
         )}
       </div>
 
+      {displayedTeams.length === 0 ? (
+        <>
+          <div className="empty-state-toolbar">{filterControl}</div>
+          <div className="empty-state">
+            <EmptyJersey variant="team" />
+            <h2>Ajouter des équipes à cette division</h2>
+            <p>
+              Ou commençant avec par{" "}
+              <Link to="/structure" className="empty-state-link">
+                classement
+              </Link>{" "}
+              et ajouter les équipes plus tard.
+            </p>
+            <button
+              type="button"
+              className="btn-outlined"
+              onClick={() => addTeam(category !== "all" ? category : undefined)}
+            >
+              Ajouter une équipe
+            </button>
+            <p className="empty-state-footer">
+              Pas de sport d&apos;équipe ?{" "}
+              <button type="button" className="empty-state-footer-link" onClick={switchToIndividualSport}>
+                Cliquez ici
+              </button>{" "}
+              pour passer à un sport individuel.
+            </p>
+          </div>
+        </>
+      ) : (
       <div className="data-table-wrap">
         {selected.length > 0 ? (
           <div className="teams-selection-banner">
@@ -973,6 +1006,7 @@ export default function TeamsPage() {
           </span>
         </div>
       </div>
+      )}
     </div>
   );
 }

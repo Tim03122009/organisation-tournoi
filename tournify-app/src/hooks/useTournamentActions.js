@@ -317,7 +317,7 @@ export function useTournamentActions() {
       },
     });
 
-  const addTeam = () =>
+  const addTeam = (divisionName) =>
     openPrompt({
       title: "Ajouter une équipe",
       label: "Nom de l'équipe",
@@ -335,7 +335,7 @@ export function useTournamentActions() {
               present: false,
               paye: false,
               ajoute: true,
-              division: p.selectedDivision || p.divisions?.[0]?.name || "",
+              division: divisionName || p.selectedDivision || p.divisions?.[0]?.name || "",
               connectionToken: generateTeamToken(),
               playerList: [],
               fields: {},
@@ -1299,6 +1299,15 @@ export function useTournamentActions() {
     showToast("Administrateur ajouté");
   };
 
+  const updateAdmin = (id, { email, rights }) => {
+    patch((p) => ({
+      admins: p.admins.map((admin) =>
+        admin.id === id ? { ...admin, email, rights } : admin
+      ),
+    }));
+    showToast("Administrateur mis à jour");
+  };
+
   const removeAdmin = (id) =>
     openConfirm({
       title: "Retirer l'administrateur",
@@ -1308,6 +1317,19 @@ export function useTournamentActions() {
         showToast("Administrateur retiré");
       },
     });
+
+  const deleteSelectedAdmins = (ids, onDone) => {
+    if (!ids.length) return;
+    openConfirm({
+      title: "Supprimer",
+      message: `Supprimer ${ids.length} administrateur(s) ?`,
+      onConfirm: () => {
+        patch((p) => ({ admins: p.admins.filter((a) => !ids.includes(a.id)) }));
+        showToast("Administrateur(s) supprimé(s)");
+        onDone?.();
+      },
+    });
+  };
 
   // ——— Structure ———
   const setStructureDivision = (division) => update({ selectedDivision: division });
@@ -1880,7 +1902,9 @@ export function useTournamentActions() {
     importReferees,
     toggleTeamsAsReferees,
     addAdmin,
+    updateAdmin,
     removeAdmin,
+    deleteSelectedAdmins,
     setStructureDivision,
     addPhase,
     editPhase,
