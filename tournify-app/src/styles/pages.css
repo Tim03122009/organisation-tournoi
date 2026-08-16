@@ -1565,6 +1565,17 @@ textarea.mui-input {
   font-weight: 500;
 }
 
+.tournois-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tournois-import-input {
+  display: none;
+}
+
 .tournois-toolbar {
   display: flex;
   align-items: center;

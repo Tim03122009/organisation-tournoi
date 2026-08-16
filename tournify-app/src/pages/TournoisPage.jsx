@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useTournament } from "../context/TournamentContext";
 import { useTournamentActions } from "../hooks/useTournamentActions";
+import { downloadText } from "../utils/helpers";
+import { tournamentExportFilename } from "../utils/tournamentExport";
 
 function formatListDate(isoDate) {
   if (!isoDate) return "";
@@ -18,10 +20,12 @@ function TournamentCard({
   setMenuId,
   onOpen,
   onDuplicate,
+  onExport,
   onDelete,
 }) {
   const shared = Boolean(tournament.shared);
   const canCopy = Boolean(tournament.isOwner);
+  const canExport = Boolean(tournament.isOwner);
   const menuOpen = menuId === tournament.id;
 
   return (
@@ -66,6 +70,11 @@ function TournamentCard({
                   </button>
                 </>
               ) : null}
+              {canExport ? (
+                <button type="button" role="menuitem" onClick={() => onExport(tournament)}>
+                  Exporter le tournoi
+                </button>
+              ) : null}
               <button
                 type="button"
                 role="menuitem"
@@ -85,12 +94,22 @@ function TournamentCard({
 export default function TournoisPage() {
   const navigate = useNavigate();
   const { logout, user } = useAuth();
-  const { tournaments, createTournament, openTournament, duplicateTournament, deleteTournament, leaveTournament } = useTournament();
+  const {
+    tournaments,
+    createTournament,
+    openTournament,
+    duplicateTournament,
+    exportTournament,
+    importTournament,
+    deleteTournament,
+    leaveTournament,
+  } = useTournament();
   const { showSupport, openPrompt, openConfirm, showToast } = useTournamentActions();
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("recent");
   const [menuId, setMenuId] = useState(null);
   const menuRef = useRef(null);
+  const importInputRef = useRef(null);
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -153,6 +172,47 @@ export default function TournoisPage() {
     }
   };
 
+  const handleExport = (tournament) => {
+    setMenuId(null);
+    const payload = exportTournament(tournament.id);
+    if (!payload) {
+      showToast("Seuls les propriétaires peuvent exporter un tournoi");
+      return;
+    }
+    downloadText(
+      tournamentExportFilename(tournament.name),
+      JSON.stringify(payload, null, 2),
+      "application/json;charset=utf-8"
+    );
+    showToast("Tournoi exporté");
+  };
+
+  const handleImportClick = () => {
+    importInputRef.current?.click();
+  };
+
+  const handleImportFile = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result || ""));
+        const importedId = importTournament(parsed);
+        if (!importedId) {
+          showToast("Fichier de tournoi invalide");
+          return;
+        }
+        showToast("Tournoi importé");
+      } catch {
+        showToast("Impossible de lire ce fichier");
+      }
+    };
+    reader.onerror = () => showToast("Impossible de lire ce fichier");
+    reader.readAsText(file, "UTF-8");
+  };
+
   const handleDelete = (tournament) => {
     setMenuId(null);
     if (!tournament.isCreator) {
@@ -184,6 +244,7 @@ export default function TournoisPage() {
     setMenuId,
     onOpen: handleOpen,
     onDuplicate: handleDuplicate,
+    onExport: handleExport,
     onDelete: handleDelete,
   };
 
@@ -210,9 +271,21 @@ export default function TournoisPage() {
       <main className="tournois-main">
         <div className="tournois-header">
           <h1>Tournois</h1>
-          <button type="button" className="btn-outlined" onClick={handleCreate}>
-            + Nouveau tournoi
-          </button>
+          <div className="tournois-header-actions">
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".json,application/json"
+              className="tournois-import-input"
+              onChange={handleImportFile}
+            />
+            <button type="button" className="btn-outlined" onClick={handleImportClick}>
+              Importer
+            </button>
+            <button type="button" className="btn-outlined" onClick={handleCreate}>
+              + Nouveau tournoi
+            </button>
+          </div>
         </div>
 
         <div className="tournois-toolbar">

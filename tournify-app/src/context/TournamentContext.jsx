@@ -19,6 +19,7 @@ import {
   syncAdminAccessDocs,
   writeAdminAccess,
 } from "../utils/tournamentAccess";
+import { buildTournamentExport, parseTournamentImport } from "../utils/tournamentExport";
 
 const STORAGE_KEY = "gestion-tournoi-data";
 
@@ -663,6 +664,33 @@ export function TournamentProvider({ children }) {
     return newId;
   };
 
+  const exportTournament = (id) => {
+    const source = store.tournaments[id];
+    if (!source || !isTournamentOwner(source, userId)) return null;
+    return buildTournamentExport(source);
+  };
+
+  const importTournament = (raw) => {
+    const payload = parseTournamentImport(raw);
+    if (!payload) return null;
+    const newId = newTournamentId();
+    const created = withOwner(
+      cloneTournament(mergeWithDefaults(payload), {
+        withTeams: true,
+        newId,
+        name: String(payload.name || "").trim() || "Tournoi importé",
+        user,
+      }),
+      user
+    );
+    dirtySinceLoad.current = true;
+    setStore((prev) => ({
+      ...prev,
+      tournaments: { ...prev.tournaments, [newId]: created },
+    }));
+    return newId;
+  };
+
   const persistNow = (item) => {
     if (!isFirebaseConfigured || !db || !userId || userId === "local-demo" || !item?.id) return Promise.resolve();
     const payload = toCloudTournament(item, user);
@@ -851,6 +879,8 @@ export function TournamentProvider({ children }) {
         createTournament,
         openTournament,
         duplicateTournament,
+        exportTournament,
+        importTournament,
         deleteTournament,
         leaveTournament,
         addTournamentAdmin,
