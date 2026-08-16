@@ -6,6 +6,7 @@ import {
   signOut,
 } from "firebase/auth";
 import { auth, isFirebaseConfigured } from "../firebase";
+import { ensureUserDirectoryEntry, registerCurrentUserEmail } from "../utils/userLookup";
 
 const AuthContext = createContext(null);
 
@@ -27,25 +28,35 @@ export function AuthProvider({ children }) {
     }
 
     return onAuthStateChanged(auth, (nextUser) => {
+      if (nextUser?.email) {
+        registerCurrentUserEmail(nextUser.email);
+        ensureUserDirectoryEntry(nextUser).catch((err) => {
+          console.warn("Index utilisateur impossible:", err);
+        });
+      }
       setUser(nextUser);
       setLoading(false);
     });
   }, []);
 
-  const login = (email, password) => {
+  const login = async (email, password) => {
     if (!isFirebaseConfigured || !auth) {
       setUser(LOCAL_DEMO_USER);
-      return Promise.resolve({ user: LOCAL_DEMO_USER });
+      return { user: LOCAL_DEMO_USER };
     }
-    return signInWithEmailAndPassword(auth, email, password);
+    const result = await signInWithEmailAndPassword(auth, email, password);
+    await ensureUserDirectoryEntry(result.user).catch(() => {});
+    return result;
   };
 
-  const signup = (email, password) => {
+  const signup = async (email, password) => {
     if (!isFirebaseConfigured || !auth) {
       setUser(LOCAL_DEMO_USER);
-      return Promise.resolve({ user: LOCAL_DEMO_USER });
+      return { user: LOCAL_DEMO_USER };
     }
-    return createUserWithEmailAndPassword(auth, email, password);
+    const result = await createUserWithEmailAndPassword(auth, email, password);
+    await ensureUserDirectoryEntry(result.user).catch(() => {});
+    return result;
   };
 
   const logout = () => {

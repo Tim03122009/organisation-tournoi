@@ -282,11 +282,48 @@
 }
 
 .empty-state img,
-.empty-state .empty-icon {
+.empty-state .empty-icon,
+.empty-state .empty-jersey {
   width: 120px;
-  height: 120px;
-  margin-bottom: 24px;
-  opacity: 0.8;
+  height: auto;
+  margin: 0 auto 24px;
+  display: block;
+  object-fit: contain;
+}
+
+.empty-state-link {
+  color: var(--primary);
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+a.empty-state-link:hover,
+button.empty-state-link:hover {
+  text-decoration: underline;
+}
+
+.empty-state-footer {
+  margin: 28px 0 0;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+}
+
+.empty-state-footer-link {
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.empty-state-toolbar {
+  margin: 0 0 8px;
 }
 
 .empty-state h2 {
@@ -349,7 +386,8 @@
 .referees-empty-toggle {
   display: flex;
   justify-content: center;
-  margin-bottom: 20px;
+  margin-top: 28px;
+  margin-bottom: 0;
 }
 
 .data-table {

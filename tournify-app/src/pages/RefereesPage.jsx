@@ -14,6 +14,7 @@ import {
 } from "../utils/helpers";
 import { REFEREE_EXPERIENCE_OPTIONS } from "../utils/refereeExperience";
 import { downloadConnectionQrJpeg, formatConnectionLinkLabel } from "../utils/qrCode";
+import EmptyJersey from "../components/EmptyJersey";
 
 const BOOLEAN_FIELDS = new Set(["present", "disponible"]);
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -784,21 +785,13 @@ export default function RefereesPage() {
 
       {!hasReferees ? (
         <div className="empty-state">
-          <div className="admin-empty-icon material-icons">sports</div>
+          <EmptyJersey variant="referee" />
           <h2>Ajouter des arbitres</h2>
-          <p>
-            Gérez la liste des arbitres du tournoi, leurs informations et leur lien de connexion
-            pour consulter leurs matchs.
-          </p>
+          <p>Utilisez ensuite la page du calendrier pour assigner les arbitres aux matchs.</p>
+          <button type="button" className="btn-outlined" onClick={addReferee}>
+            Ajouter un arbitre
+          </button>
           <div className="referees-empty-toggle">{teamsAsRefereesToggle}</div>
-          <div className="data-table-toolbar-actions" style={{ justifyContent: "center" }}>
-            <button type="button" className="btn-outlined" onClick={() => importInputRef.current?.click()}>
-              Importer CSV
-            </button>
-            <button type="button" className="btn-outlined primary" onClick={addReferee}>
-              Ajouter un arbitre
-            </button>
-          </div>
         </div>
       ) : (
         <div className="data-table-wrap">
